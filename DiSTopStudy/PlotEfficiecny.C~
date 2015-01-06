@@ -1,0 +1,278 @@
+#include "tree.h"
+
+Char_t *cString="T2tt_mStop550_mLSP250";
+Char_t *cFileName="outTest_T2tt_mStop550_mLSP250_NOCUTS_All.root";
+
+
+Char_t *cString="TTJets_TuneZ2star_8TeV-madgraph-tauola";
+Char_t *cFileName="test/Background/outTest_TTJets_TuneZ2star_8TeV-madgraph-tauola_All.root";
+
+
+TH1F *hTopDT[5][2];
+
+TH1F *hTopHT[5][2];
+
+TH2F *hTopMetVsPtHT;
+TH2F *hTopMetVsPtDT;
+
+Char_t *cHVar[]={"Mass","PT","Eta","Phi","Met"};
+Char_t *cHNumDen[] = {"Num","Den"};
+
+Float_t fHVar1Min[]={0,0,-3.0,-3.5,0};
+Float_t fHVar1Max[]={1000,500,3.0,3.5,500};
+Int_t iHVar1Bins[]={50,50,30,40,50};
+
+Char_t *cHTagger[] = {"Combinotorial Tagger","HepMC Tagger"};
+Char_t *cHTaggerS[] = {"DT","HT"};
+
+Char_t cTemp[256];
+
+void PlotEfficiecny(){
+
+  for(Int_t i=0;i<5;i++){
+  
+    for(Int_t j=0;j<2;j++){
+      sprintf(cTemp,"DT_%s_%s",cHNumDen[j],cHVar[i]);
+      hTopDT[i][j]=new TH1F(cTemp,"",iHVar1Bins[i],fHVar1Min[i],fHVar1Max[i]);
+
+      cout<<cTemp<<endl;
+      
+      sprintf(cTemp,"HT_%s_%s",cHNumDen[j],cHVar[i]);
+      hTopHT[i][j]=new TH1F(cTemp,"",iHVar1Bins[i],fHVar1Min[i],fHVar1Max[i]);
+     
+    }
+  }
+  
+  hTopMetVsPtHT = new TH2F("hTopMetVsPtHT","",iHVar1Bins[4],fHVar1Min[4],fHVar1Max[1],iHVar1Bins[1],fHVar1Min[1],fHVar1Max[1]);
+  hTopMetVsPtDT = new TH2F("hTopMetVsPtDT","",iHVar1Bins[4],fHVar1Min[4],fHVar1Max[1],iHVar1Bins[1],fHVar1Min[1],fHVar1Max[1]);
+
+  
+
+  TFile  *fPlot = new TFile(cFileName);
+  fPlot->ls();
+  
+  TTree *EventTree  = (TTree*)fPlot->Get("lostLeptonTree/tree");
+  init(EventTree);
+  EventTree->Print();
+  cout<<"Processing :  "<<EventTree->GetEntries()<<endl;
+
+  Int_t iTopIndex;
+  Double_t dTopPt;
+  Int_t iSize;
+
+  Int_t iTopIndex2;
+  Double_t dTopPt2;
+
+  for(Long_t l=0;l<EventTree->GetEntries();l++){
+  // for(Long_t l=0;l<10000;l++){
+    EventTree->GetEntry(l);
+    
+    iTopIndex = -1;
+    dTopPt = -1;
+    
+    iSize = (*t_genPartPdgId).size();
+    
+    //    cout<<iSize<<endl;
+
+    for(Int_t i=0;i<iSize;i++){
+      if(abs((*t_genPartPdgId)[i])==6){
+	if((*t_genPartPt)[i]>dTopPt){
+	  dTopPt = (*t_genPartPt)[i];
+	  iTopIndex = i;
+	}
+      }
+    }
+    
+
+    if(iTopIndex<0)
+      continue;
+
+    iTopIndex2 = -1;
+    dTopPt2 = -1;
+    
+
+    for(Int_t i=0;i<iSize;i++){
+      if(i==iTopIndex)
+	continue;
+      if(abs((*t_genPartPdgId)[i])==6){
+	if((*t_genPartPt)[i]>dTopPt2){
+	  dTopPt2 = (*t_genPartPt)[i];
+	  iTopIndex2 = i;
+	}
+      }
+    }
+    
+    hTopDT[1][0]->Fill((*t_genPartPt)[iTopIndex]);
+    hTopDT[2][0]->Fill((*t_genPartEta)[iTopIndex]);
+    hTopDT[3][0]->Fill((*t_genPartPhi)[iTopIndex]);
+    hTopDT[4][0]->Fill(t_PFMetE);
+    
+    if(t_DTTotalSystemMass>0){
+ 
+      
+      Double_t dR1 = deltaR((*t_genPartEta)[iTopIndex],(*t_genPartPhi)[iTopIndex],t_DTTopEta1,t_DTTopPhi1);
+      
+      if(iTopIndex2<0){
+	if(dR1<0.8){
+	  hTopDT[1][1]->Fill((*t_genPartPt)[iTopIndex]);
+	  hTopDT[2][1]->Fill((*t_genPartEta)[iTopIndex]);
+	  hTopDT[3][1]->Fill((*t_genPartPhi)[iTopIndex]);
+	  hTopDT[4][1]->Fill(t_PFMetE);
+	  hTopMetVsPtDT->Fill(t_PFMetE,t_DTTopPt1);
+	}
+      }else{
+	Double_t dR2 = deltaR((*t_genPartEta)[iTopIndex2],(*t_genPartPhi)[iTopIndex2],t_DTTopEta1,t_DTTopPhi1);
+	     
+	if(dR1<dR2){
+	  if(dR1<0.8){
+	    hTopDT[1][1]->Fill((*t_genPartPt)[iTopIndex]);
+	    hTopDT[2][1]->Fill((*t_genPartEta)[iTopIndex]);
+	    hTopDT[3][1]->Fill((*t_genPartPhi)[iTopIndex]);
+	    hTopDT[4][1]->Fill(t_PFMetE);
+	    hTopMetVsPtDT->Fill(t_PFMetE,t_DTTopPt1);
+	  }
+	}else{
+	  if(dR2<0.8){
+	    hTopDT[1][1]->Fill((*t_genPartPt)[iTopIndex]);
+	    hTopDT[2][1]->Fill((*t_genPartEta)[iTopIndex]);
+	    hTopDT[3][1]->Fill((*t_genPartPhi)[iTopIndex]);
+	    hTopDT[4][1]->Fill(t_PFMetE);
+	    hTopMetVsPtDT->Fill(t_PFMetE,t_DTTopPt1);
+	  }
+	}
+	
+      }
+	
+    }
+    
+    hTopHT[1][0]->Fill((*t_genPartPt)[iTopIndex]);
+    hTopHT[2][0]->Fill((*t_genPartEta)[iTopIndex]);
+    hTopHT[3][0]->Fill((*t_genPartPhi)[iTopIndex]);
+    hTopHT[4][0]->Fill(t_PFMetE);
+
+    if(t_fatJet1_pt123>200&&t_fatJet1_m123>147.3&&t_fatJet1_m123<197.3){
+      
+      Double_t dR1 = deltaR((*t_genPartEta)[iTopIndex],(*t_genPartPhi)[iTopIndex],t_fatJet1_eta123,t_fatJet1_phi123);
+      
+      if(iTopIndex2<0){
+	if(dR1<0.4){
+	  hTopHT[1][1]->Fill((*t_genPartPt)[iTopIndex]);
+	  hTopHT[2][1]->Fill((*t_genPartEta)[iTopIndex]);
+	  hTopHT[3][1]->Fill((*t_genPartPhi)[iTopIndex]);
+	  hTopHT[4][1]->Fill(t_PFMetE);
+	  hTopMetVsPtHT->Fill(t_PFMetE,t_fatJet1_pt123);
+	}
+      }else{
+	Double_t dR2 = deltaR((*t_genPartEta)[iTopIndex2],(*t_genPartPhi)[iTopIndex2],t_fatJet1_eta123,t_fatJet1_phi123);
+	     
+	if(dR1<dR2){
+	  if(dR1<0.4){
+	    hTopHT[1][1]->Fill((*t_genPartPt)[iTopIndex]);
+	    hTopHT[2][1]->Fill((*t_genPartEta)[iTopIndex]);
+	    hTopHT[3][1]->Fill((*t_genPartPhi)[iTopIndex]);
+	    hTopHT[4][1]->Fill(t_PFMetE);
+	    hTopMetVsPtHT->Fill(t_PFMetE,t_fatJet1_pt123);
+	  }
+	}else{
+	  if(dR2<0.4){
+	    hTopHT[1][1]->Fill((*t_genPartPt)[iTopIndex]);
+	    hTopHT[2][1]->Fill((*t_genPartEta)[iTopIndex]);
+	    hTopHT[3][1]->Fill((*t_genPartPhi)[iTopIndex]);
+	    hTopHT[4][1]->Fill(t_PFMetE);
+	    hTopMetVsPtHT->Fill(t_PFMetE,t_fatJet1_pt123);
+	  }
+	}
+	
+      }
+    }
+  }
+
+  for(Int_t i=1;i<5;i++){
+      
+      plotRatio(hTopDT[i][1],hTopDT[i][0],i,0);
+      plotRatio(hTopHT[i][1],hTopHT[i][0],i,1);
+     
+  }
+
+  
+  plotContour(hTopMetVsPtHT,1);
+  plotContour(hTopMetVsPtDT,0);
+ 
+}
+
+void plotContour(TH2F *hTemp,Int_t iType){
+
+  hTemp->GetXaxis()->SetTitle("Met");
+  hTemp->GetYaxis()->SetTitle("Tagged Top Reco Pt");
+
+  hTemp->SetContour(2);
+  hTemp->SetLineWidth(2);
+  hTemp->DrawCopy("CONT3");
+
+
+
+  TLatex *la1 = new TLatex(); 
+  la1->SetNDC();
+  la1->SetTextFont(42);
+  la1->SetTextSize(0.045);
+
+
+  la1->DrawLatex(0.5,0.96,cString);
+
+  la1->DrawLatex(0.3,0.86,cHTagger[iType]);
+
+  sprintf(cTemp,"EfficiecnyTT_Contour_%s.gif",cHTaggerS[iType]);
+  c1->Print(cTemp,"gif");
+}
+
+
+void plotRatio(TH1F *hNum,TH1F *hDen,Int_t i,Int_t iType){
+
+  TGraphAsymmErrors *g1 = new TGraphAsymmErrors();
+
+  hNum->Draw();
+
+  g1->BayesDivide(hNum,hDen);
+
+  g1->SetMarkerStyle(20);
+
+  TH1F *h1 = c1->DrawFrame(fHVar1Min[i],0,fHVar1Max[i],0.5);
+  h1->GetXaxis()->SetTitle(cHVar[i]);
+  h1->GetYaxis()->SetTitle("Efficiency");
+
+  g1->Draw("P");
+  
+  TLatex *la1 = new TLatex(); 
+  la1->SetNDC();
+  la1->SetTextFont(42);
+  la1->SetTextSize(0.045);
+
+  la1->DrawLatex(0.5,0.96,cString);
+
+  la1->DrawLatex(0.3,0.86,cHTagger[iType]);
+
+  sprintf(cTemp,"EfficiecnyTT_%s_%s.gif",cHTaggerS[iType],cHVar[i]);
+  c1->Print(cTemp,"gif");
+}
+
+
+
+double deltaR2(double eta1, double phi1, double eta2, double phi2) {
+  double deta = eta1 - eta2;
+  double dphi = deltaPhi(phi1, phi2);
+  return deta*deta + dphi*dphi;
+}
+
+double deltaR(double eta1, double phi1, double eta2, double phi2) {
+  return TMath::Sqrt(deltaR2 (eta1, phi1, eta2, phi2));
+}
+
+
+double deltaPhi(double phi1, double phi2) { 
+  double result = phi1 - phi2;
+  while (result > TMath::Pi()) 
+    result -= (2.*TMath::Pi());
+  while (result <= -1.*TMath::Pi()) 
+    result += 2.*TMath::Pi();
+  return result;
+}

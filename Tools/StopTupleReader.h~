@@ -1,0 +1,9 @@
+#ifndef STOP_TUPLE_READER_H
+#define STOP_TUPLE_READER_H
+
+class TupleReader
+{
+    
+};
+
+#endif

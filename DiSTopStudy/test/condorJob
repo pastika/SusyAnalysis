@@ -1,0 +1,19 @@
+#!\/bin\/bash
+Universe     = vanilla
+Notification = Complete
+Executable   = /uscms/home/javiert/work/CMSSW_5_2_5/src/SusyAnalysis/LostLepton/test/cmsRunScript.sh
+Arguments    = fileListSG SGout/outCondorProc$(Process)
+Should_Transfer_Files = YES
+WhenTOTransferOutput  = ON_EXIT
+Output       = log/$(Process).stdout
+Error        = log/$(Process).stderr
+Log          = log/$(Process).condorlog
+notify_user  = javiert@FNAL.GOV
+Queue
+
+Arguments = zzz BGout/outCondorProc$(Process)
+Queue
+
+Arguments = zzz BGout/outCondorProc$(Process)
+Queue
+

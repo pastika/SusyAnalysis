@@ -1,0 +1,29 @@
+#!/bin/tcsh
+
+#cat QCD_Pt_80_120_RECO_WN_NZ_WSR_cfg.py   | sed -es/FILECOUNT/$1/  >  QCD_Pt_80_120_RECO_WN_NZ_WSR_$1_cfg.py
+#cat QCD_Pt_80_120_RECO_WN_NZ_WSR_$1_cfg.py
+#mv QCD_Pt_80_120_RECO_WN_NZ_WSR_$1_cfg.py  PythonScript/
+
+
+echo "#!\/bin\/tcsh" >SubmitScriptTR$1
+echo "Universe     = vanilla" >>SubmitScriptTR$1
+echo "Notification = Complete" >>SubmitScriptTR$1
+echo "Arguments    =   `pwd` $2" >>SubmitScriptTR$1
+echo "Executable = cmsRunScript_Box.sh" >>SubmitScriptTR$1
+#echo "Requirements = Memory >= 199 &&OpSys == "LINUX"&& (Arch != "DUMMY" )" >>SubmitScriptTR$2
+echo "Should_Transfer_Files = YES" >>SubmitScriptTR$1
+echo "WhenTOTransferOutput  = ON_EXIT" >>SubmitScriptTR$1
+echo "Output = log/$1.stdout" >>SubmitScriptTR$1
+echo "Error = log/$1.stderr " >>SubmitScriptTR$1
+echo "Log =  log/$1.condorlog" >>SubmitScriptTR$1
+echo "notify_user = vasurang@FNAL.GOV" >>SubmitScriptTR$1
+echo "Queue 1" >>SubmitScriptTR$1
+
+
+cat SubmitScriptTR$1
+
+mv SubmitScriptTR$1 CondorSubmit/
+
+echo Submitting jobs
+
+condor_submit  CondorSubmit/SubmitScriptTR$1 

@@ -1,0 +1,266 @@
+#include "FileHeader.h"
+#include "MakeIndividualPlots.C"
+
+
+ofstream DQHtml;
+
+Char_t *cString="SensitivityStudy";
+
+Char_t *cEventHists[]={ "allEvents","afterMuonVetoEvents","afterElectronVetoEvents","afterTrackIsolationEvents","afterdPhiFilterEvents"};
+TH1F *hEventCount[100][6];
+
+Int_t iFilesArray[20];
+Int_t iFilesArrayCount =0;
+
+Int_t iMarker[] = {20,24,25,26,27,28,29,30};
+Int_t iMarkerColor[] = {1,2,4,6,8,10,12,14,16};
+
+TCanvas c1;
+
+void MakeSensitivity(){
+  cout<<iSamples<<endl;
+  
+ 
+
+  gSystem->mkdir(cString);
+  sprintf(cTemp,"%s/index.html",cString);
+  DQHtml.open(cTemp);
+  
+  DQHtml << "<HTML>" << endl;
+  DQHtml << "<BODY>" << endl;
+    
+  DQHtml << "<H2 style=\"background-color: #BBBBBB;\">" << endl;
+  DQHtml <<"Event Selection"<<endl;
+  DQHtml << "</H2>" << endl;
+  
+  DQHtml << "<table cellspacing=\"\" cellpadding=\"\" border=\"\" align=\"center\" >" << endl;
+  DQHtml << "" << endl;
+  DQHtml << "" << endl;
+
+  DQHtml<<"<TR>"<< endl;
+  DQHtml<<"<TD  align='left' colspan=1 bgcolor=\'#BBBBBB;\'>Sample</TD>"<< endl;
+  DQHtml<<"<TD  align='center' colspan=1 bgcolor=\'#BBBBBB;\'>Cross-section</TD>"<< endl;
+  for(Int_t i=0;i<5;i++){
+    DQHtml<<"<TD  align='left' colspan=1 bgcolor=\'#BBBBBB;\'>"<<cEventHists[i]<<"</TD>"<< endl;
+  }
+  DQHtml<<"</TR>"<< endl;
+
+
+  for(Int_t iS=0;iS<iSamples;iS++){
+    
+    cout<<cFileDir[iS]<<endl;
+    if(iFileType[iS]<0)
+      continue;
+    DQHtml<<"<TR>"<< endl;
+    DQHtml<<"<TD  align='left' colspan=1> "<<cFileStr[iS]<<"</TD>"<< endl;
+    DQHtml<<"<TD  align='left' colspan=1> "<<dCrossSection[iS] <<"</TD>"<< endl;
+
+    for(Int_t i=0;i<5;i++)
+      hEventCount[iS][i]=new TH1F(cEventHists[i],"",1,0,1);
+    
+
+    for(Int_t iF=0;iF<iFileLen[iS];iF++){
+      sprintf(cTemp,"%s/%s",cFileDir[iS],cFileNames[iS][iF]);
+      cout<<cTemp<<endl;
+
+      TFile *file = new TFile(cTemp);
+      //    file->ls();
+      
+      for(Int_t i=0;i<5;i++){
+	(TH1F*)file->Get(cEventHists[i])->Print();
+	sprintf(cTemp,"%s/h1",cEventHists[i]);
+	hEventCount[iS][i]->Add((TH1F*)file->Get(cTemp));
+       
+      }
+
+      file->Close();
+    }
+    
+    
+    for(Int_t i=0;i<5;i++){
+      if(i==0)
+	DQHtml<<"<TD  align='center' colspan=1>"<<hEventCount[iS][i]->Integral()<<"</TD>"<< endl;
+      else{
+	sprintf(cTemp,"%%%2.2f",100.0*hEventCount[iS][i]->Integral()/hEventCount[iS][0]->Integral());
+	DQHtml<<"<TD  align='center' colspan=1>"<<hEventCount[iS][i]->Integral()<<"<font color='red'>("<<cTemp<<")<font>"<<"</TD>"<< endl;
+      }
+    }
+   
+  
+
+    DQHtml<<"</TR>"<< endl;
+
+    
+
+  }
+  DQHtml << "</table>" << endl;
+  
+
+  Double_t dEventsBGDT=0.0;
+  Double_t dEventsBGHT=0.0;
+  Double_t dEventsBGAll=0.0;
+  Double_t dTempAll;
+  Double_t dTempDT;
+  Double_t dTempHT;
+
+
+  cout<<"************************************  Strating the sensitivity calculation"<<endl;
+
+
+  MakeIndividualPlots(12);
+  iFilesArray[iFilesArrayCount]=12;
+  iFilesArrayCount++;
+
+  for(Int_t iS=0;iS<iSamples;iS++){
+    if(iFileType[iS]!=1)
+      continue;
+    cout<<cFileDir[iS]<<endl;
+    
+    MakeIndividualPlots(iS);
+    iFilesArray[iFilesArrayCount]=iS;
+    iFilesArrayCount++;
+    
+  }
+  
+  /* 
+
+  TH1F *hTemp[10];
+
+  for(Int_t i=0;i<2;i++){
+    for(Int_t j=0;j<9;j++){
+      for(Int_t l=0;l<2;l++){
+	sprintf(cTemp,"WDist_%s_%s_%s",cBGSel[l],cHOrder[i],cHVar[j]);
+	cout<<cTemp<<endl;
+	for(Int_t iT =0;iT<iFilesArrayCount;iT++){
+	  sprintf(cTemp2,"SensitivityStudy/BasicDist_%s.root",cFileStr[iFilesArray[iT]]);
+	  
+	  TFile *fIn = new TFile(cTemp2);
+	  
+	  sprintf(cTemp3,"%s_%s",cTemp,cFileStr[iFilesArray[iT]]);
+	  TH1F *hTemp1 = (TH1F*)(fIn->Get(cTemp));
+	  hTemp[iT]=(TH1F*)(hTemp1)->Clone(cTemp3);
+	  hTemp[iT]->Print();
+	  //	  fIn->Close();
+	
+	}
+
+
+	if(j<8){
+	
+	  DQHtml << "<table cellspacing=\"\" cellpadding=\"\" border=\"\" align=\"center\" >" << endl;
+	  DQHtml << "" << endl;
+	  DQHtml << "" << endl;
+	  DQHtml<<"<TR>"<< endl;
+	  DQHtml<<"<TD  align='center' colspan=2>"<<"Testing"<<"</TD>"<< endl;
+	  DQHtml<<"</TR>"<< endl;
+	  DQHtml<<"<TD  align='center'>"<< endl;
+	  
+	  DQHtml<<"</TR>"<< endl;
+	  DQHtml<<"<TR>"<< endl;
+	  DQHtml<<"<TD  align='center'>"<< endl;
+	  plotOverlayDist(hTemp,j,0,i,0);
+	  DQHtml<<"</TD>"<<endl;
+	  DQHtml<<"</TR>"<< endl;
+	  DQHtml << "</table>" << endl;
+
+	}
+      }
+    }
+  }
+  
+  */
+
+  
+
+    
+  DQHtml << "<table cellspacing=\"\" cellpadding=\"\" border=\"\" align=\"center\" >" << endl;
+  DQHtml << "" << endl;
+  DQHtml << "" << endl;
+
+  DQHtml<<"<TR>"<< endl;
+  DQHtml<<"<TD  align='left' colspan=1 bgcolor=\'#BBBBBB;\'>Sample</TD>"<< endl;
+  DQHtml<<"<TD  align='left' colspan=1 bgcolor=\'#BBBBBB;\'>Kinemetic Tagger</TD>"<< endl;
+  DQHtml<<"<TD  align='left' colspan=1 bgcolor=\'#BBBBBB;\'>HepTop Tagger</TD>"<< endl;
+  DQHtml<<"</TR>"<< endl;
+
+  
+  for(Int_t i=0;i<iFilesArrayCount;i++){
+
+    DQHtml<<"<TR>"<< endl;
+    DQHtml<<"<TD  align='left' colspan=1 bgcolor=\'#BBBBBB;\'>"<<cFileStr[iFilesArray[i]]<<"</TD>"<< endl;
+
+    sprintf(cTemp2,"SensitivityStudy/BasicDist_%s.root",cFileStr[iFilesArray[i]]);
+    TFile *fIn = new TFile(cTemp2);
+    TH1F *hTemp1 = (TH1F*)(fIn->Get("WDist_Signal_Leading_Mass"));
+    TH1F *hTemp3 = (TH1F*)(fIn->Get("TDist_Signal_Leading_Mass"));
+    DQHtml<<"</TR>"<< endl;
+  }
+  
+
+
+
+  DQHtml << "</table>" << endl;
+
+  DQHtml << "</BODY>" << endl;
+  DQHtml << "</HTML>" << endl;
+  DQHtml.close();
+
+}
+
+
+
+void plotOverlayDist(TH1F *hTemp[10],Int_t iVar,Int_t iType,Int_t iOrder,Int_t iSel){
+
+   c1= new TCanvas("c1","c1",0,0,700,500);
+
+  cout<<"1"<<endl;
+ 
+  for(Int_t iF =0;iF< iFilesArrayCount; iF++){
+    hTemp[iF]->Sumw2();
+    hTemp[iF]->Print();
+    //    hTemp[iF]->Scale(1.0/hTemp[iF]->GetMaximum());
+    hTemp[iF]->SetMarkerStyle( iMarker[iF]);
+    hTemp[iF]->SetMarkerColor( iMarkerColor[iF]);
+    hTemp[iF]->SetLineColor( iMarkerColor[iF]);
+    hTemp[iF]->GetXaxis()->SetTitle(cHVar[iVar]);
+    hTemp[iF]->GetYaxis()->SetRangeUser(0.0,1.5);
+
+    if(iF==0){
+      hTemp[iF]->DrawCopy("P");
+    }else{
+      hTemp[iF]->DrawCopy("Same P");
+    }
+    
+  }
+
+   
+  TLatex *la1 = new TLatex(); 
+  la1->SetNDC();
+  la1->SetTextFont(42);
+  la1->SetTextSize(0.045);
+  la1->DrawLatex(0.5,0.96,cHTagger[iType]);
+   
+  sprintf(cTemp,"SensitivityStudy/BGCompareDist_%s_%s_%s_%s.gif",cBGSel[iSel],cHOrder[iOrder],cHTaggerS[iType],cHVar[iVar]);
+  c1->Print(cTemp,"gif");
+
+    
+  sprintf(cTemp,"BGCompareDist_%s_%s_%s_%s.gif",cBGSel[iSel],cHOrder[iOrder],cHTaggerS[iType],cHVar[iVar]);
+   DQHtml<< "<A href=\""<<cTemp<<"\">"<<endl;
+  DQHtml <<"<img align='center' id=\""<<cTemp<<"\" name=\""<<cTemp<<"\" src=\""<<cTemp<<"\" alt=\"Click\" width='100' height='100' > " <<endl;
+  DQHtml<< "</A>" << endl;
+  DQHtml<< "<BR>" << endl;
+  
+  c1->SetLogy();
+  
+  sprintf(cTemp,"SensitivityStudy/BGCompareDist_%s_%s_%s_%s_Log.gif",cBGSel[iSel],cHOrder[iOrder],cHTaggerS[iType],cHVar[iVar]);
+  c1->Print(cTemp,"gif");
+
+  sprintf(cTemp,"BGCompareDist_%s_%s_%s_%s_Log.gif",cBGSel[iSel],cHOrder[iOrder],cHTaggerS[iType],cHVar[iVar]);
+  DQHtml<< "<A href=\""<<cTemp<<"\">"<<endl;
+  DQHtml <<"<img align='center' id=\""<<cTemp<<"\" name=\""<<cTemp<<"\" src=\""<<cTemp<<"\" alt=\"Click\" width='100' height='100' > " <<endl;
+  DQHtml<< "</A>" << endl;
+
+  
+   c1->SetLogy(kFALSE);
+  
+}

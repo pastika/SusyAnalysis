@@ -1,0 +1,10 @@
+import parser
+import os
+import shutil
+
+f = open('InputFiles.txt_BK')
+for line in iter(f):
+    print line
+
+
+f.close()

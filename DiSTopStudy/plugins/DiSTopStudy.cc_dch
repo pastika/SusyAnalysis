@@ -1,0 +1,1960 @@
+// -*- C++ -*-
+//
+// Package:    DiSTopStudyTree
+// Class:      DiSTopStudyTree
+// 
+/**\class DiSTopStudyTre DiSTopStudyTree.cc SusyAnalysis/DiSTopStudyTree/src/DiSTopStudyTree.cc
+
+ Description: [one line class summary]
+
+ Implementation:
+     [Notes on implementation]
+*/
+//
+// Original Author:  Seema Sharma
+//         Created:  Fri Aug 24 12:18:17 CDT 2012
+// $Id: DiSTopStudyTree.cc,v 1.2 2012/09/04 10:55:22 seema Exp $
+//
+//
+
+
+// system include files
+#include <memory>
+#include <algorithm>
+#include <vector>
+
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/Utilities/interface/InputTag.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "DataFormats/Common/interface/Handle.h"
+#include "DataFormats/Common/interface/View.h"
+#include "DataFormats/PatCandidates/interface/Muon.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+
+#include "DataFormats/METReco/interface/MET.h"
+#include "DataFormats/PatCandidates/interface/Jet.h"
+#include "DataFormats/PatCandidates/interface/Electron.h"
+#include "DataFormats/PatCandidates/interface/MET.h"
+#include "DataFormats/Math/interface/deltaPhi.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectronFwd.h"
+
+//#include "SandBox/Skims/interface/SAKLooseLepton.h"
+#include "SimGeneral/HepPDTRecord/interface/ParticleDataTable.h"
+#include "DataFormats/Candidate/interface/Candidate.h"
+
+#include "SusyAnalysis/AnalysisUtils/interface/PrintEventGenInfo.h"
+#include "DataFormats/Math/interface/deltaR.h"
+
+// TFile Service
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "TTree.h"
+#include "TLorentzVector.h"
+
+//J.. FatJet HPTopTag
+#include "DataFormats/JetReco/interface/BasicJet.h"
+#include "DataFormats/JetReco/interface/BasicJetCollection.h"
+#include "DataFormats/PatCandidates/interface/Jet.h"
+#include "DataFormats/Math/interface/deltaR.h"
+
+
+#include "SimDataFormats/GeneratorProducts/interface/LHEEventProduct.h"
+
+#include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
+
+#include "recipeAUX/OxbridgeMT2/interface/Basic_Mt2_332_Calculator.h"
+#include "recipeAUX/OxbridgeMT2/interface/ChengHanBisect_Mt2_332_Calculator.h"
+
+#include "UserCode/TopTagger/interface/Type3TopTagger.h"
+//#include "UserCode/TopTagger/src/TopTagger.cc"
+
+#include "CommonTools/Utils/interface/StringCutObjectSelector.h"
+
+#include "UserCode/TopTagger/interface/combination.h"
+#include "UserCode/TopTagger/interface/indexSort.h"
+#include "TLorentzVector.h"
+
+using namespace stdindexSort;
+using namespace stdcomb;
+using namespace std;
+
+typedef unsigned int size;
+typedef std::vector<int>::iterator vii;
+
+const std::string defaultOrderingOptArr[] = {"mass", "mass"};
+const int defaultMaxIndexForOrderingArr[] = { 1,         1 };
+
+
+//For sorting by pt
+struct GreaterByPtCandPtr 
+{
+  bool operator()( const edm::Ptr<reco::Candidate> & t1, const edm::Ptr<reco::Candidate> & t2 ) const 
+  {return t1->pt() > t2->pt();}
+};
+//..J
+
+class DiSTopStudyTree : public edm::EDAnalyzer {
+
+  public:
+
+  explicit DiSTopStudyTree(const edm::ParameterSet & iConfig);
+  ~DiSTopStudyTree();
+
+  private:
+
+  void beginJob() ;
+  void endJob() ;
+  void analyze(const edm::Event&, const edm::EventSetup&);
+  void         BookHistograms();
+  void         clearTreeVectors();  
+  edm::ESHandle<ParticleDataTable> pdt_;
+
+  bool          debug_;
+  bool          isDimuonSample_;
+  bool          isMC_;
+  edm::InputTag vtxSrc_;
+  bool          doPUReWeight_;
+//J  edm::InputTag puWeigthSrc_;
+  edm::InputTag pfMetSrc_;
+  edm::InputTag jetAllsrc_;
+  std::string   btagname_;
+  edm::InputTag mhtSrc_, htSrc_;
+  edm::InputTag muonVetoSrc_, eleVetoSrc_;
+  edm::InputTag pfCandidateSrc_;
+
+  bool saveAllMuons_;
+  edm::InputTag muonSrc_;
+  double        minMuPt_, maxMuEta_, maxMuD0_, maxMuDz_, maxMuRelIso_;
+  
+  edm::Service<TFileService> fs;
+  TTree* tree;
+  unsigned int         t_EvtRun, t_EvtLS, t_EvtEvent;
+  int                  t_NVertices;
+  double               t_PUWeight;
+  double               t_TrueNPV;
+  double               t_PFMetPx, t_PFMetPy,t_PFMetE,t_PFMetPhi,t_PFMetSignificance;
+  int                  iNJets;
+  std::vector<double> *t_PFJetPt,  *t_PFJetEta,  *t_PFJetPhi,  *t_PFJetE,  *t_PFJetBTag, *t_DanTopTaggerIndex;
+  double               t_PFht, t_PFmht,t_PFmphi;
+  double               t_Genht, t_Genmht;
+  int                  t_NVetoMuon, t_NVetoEle;
+  int                  t_NJetsPt30Eta2p5, t_NJetsPt30Eta5p0, t_NJetsPt50Eta2p5, t_NJetsPt50Eta5p0;
+
+  vector<double> puWeights_;
+
+  // Muon variables
+  std::vector<double> *t_PFMuonPt, *t_PFMuonEta, *t_PFMuonPhi, *t_PFMuonE, *t_PFMuonCh;
+  std::vector<double> *t_PFMuonChiSq, *t_PFMuonValidMuonHits, *t_PFMuonMatchedStations;
+  std::vector<double> *t_PFMuonValidPixelHits, *t_PFMuonTrackerLayerMeasured;
+  std::vector<double> *t_PFMuonCharHadEt, *t_PFMuonNeutHadEt, *t_PFMuonPhotEt, *t_PFMuonSumPUPt, *t_PFMuonRelIso;
+  std::vector<double> *t_PFMuonCharHadEt03, *t_PFMuonNeutHadEt03, *t_PFMuonPhotEt03, *t_PFMuonSumPUPt03, *t_PFMuonRelIso03;
+  std::vector<bool>   *t_PFMuonID, *t_PFMuonVtxAss, *t_PFMuonIsolated, *t_PFMuonIDVtxIso;
+  std::vector<double> *t_PFMuonDirIso01, *t_PFMuonDirIso02, *t_PFMuonDirIso03, *t_PFMuonDirIso04, *t_PFMuonDirIso05;
+  std::vector<bool>   *t_PFMuonIsWdau, *t_PFMuonIsBdau;
+  std::vector<double> *t_PFMuonGenMuPt, *t_PFMuonGenMuEta, *t_PFMuonGenMuPhi;
+  double               t_PFMuonZPt, t_PFMuonZEta, t_PFMuonZPhi, t_PFMuonZE, t_PFMuonZMass;
+  std::vector<double>  *t_QCDReweight;
+
+  // Electron variables
+  std::vector<double> *t_PFElecPt, *t_PFElecEta, *t_PFElecPhi, *t_PFElecE, *t_PFElecCh; 
+  std::vector<bool>   *t_PFEleIsEB, *t_PFEleIsEE;
+  std::vector<double> *t_PFEleDEtaIn, *t_PFEleDPhiIn, *t_PFEleSigIEtaIEta;
+  std::vector<double> *t_PFEleHOE, *t_PFEleD0Vtx, *t_PFEleZVtx;
+  std::vector<double> *t_PFEleIsoCH, *t_PFEleIsoEM, *t_PFEleIsoNH, *t_PFEleIsoRho, *t_PFEleIsoEffA, *t_PFEleRelIso;
+  std::vector<bool>   *t_PFEleID, *t_PFEleIsolated, *t_PFEleIDIso;
+  std::vector<double> *t_PFEleDirIso01, *t_PFEleDirIso02, *t_PFEleDirIso03, *t_PFEleDirIso04, *t_PFEleDirIso05;
+  std::vector<bool>   *t_PFEleIsWdau, *t_PFEleIsBdau;
+  std::vector<double> *t_PFEleGenElePt, *t_PFEleGenEleEta, *t_PFEleGenElePhi;
+
+  std::vector<int>     *t_genPartPdgId, *t_genPartStatus;
+  std::vector<double>  *t_genPartPt, *t_genPartEta, *t_genPartPhi, *t_genPartE;
+  std::vector <int>                   *t_genPartDecayMode;
+
+  TLorentzVector lvMuon1;
+  TLorentzVector lvMuon2;
+
+
+  //Dans Tagger
+  double               t_DTWMass1,t_DTWMass2;
+  double               t_DTWMassChiSqr1,t_DTWMassChiSqr2;
+  double               t_DTdPhi1,t_DTdPhi2;
+  double               t_DTTopMass1,t_DTTopMass2,t_DTTotalSystemMass;
+  double               t_DTTopPt1,t_DTTopPt2,t_DTTotalSystemPt;
+  double               t_DTTopMu1,t_DTTopMu2;
+  double               t_DTTopEta1,t_DTTopEta2,t_DTTotalSystemEta;
+  double               t_DTTopPhi1,t_DTTopPhi2,t_DTTotalSystemPhi;
+  int                  indexB1, indexB2, indexW11, indexW12, indexW21, indexW22;
+
+
+  //J..
+  double               t_fatJet1_m123, t_fatJet1_m12, t_fatJet1_m13, t_fatJet1_m23,t_fatJet1_pt123,t_fatJet1_eta123,t_fatJet1_phi123;
+  double               t_fatJet2_m123, t_fatJet2_m12, t_fatJet2_m13, t_fatJet2_m23,t_fatJet2_pt123,t_fatJet2_eta123,t_fatJet2_phi123;
+  int                  t_nFatJet;
+  int                  t_fatJet1_cond1, t_fatJet1_cond2, t_fatJet1_cond3;
+  int                  t_fatJet2_cond1, t_fatJet2_cond2, t_fatJet2_cond3;
+  std::vector < std::vector<double> > *t_fatJetSubJetPt, *t_fatJetSubJetEta, *t_fatJetSubJetPhi, *t_fatJetSubJetE;
+ //..J
+
+
+  Handle<LHEEventProduct> product;
+
+
+
+  //  TopTagger *topTagger;
+
+  double bestTopJetMass;
+  bool remainPassCSVS;
+  double mTbestTopJet;
+  double mTbJet;
+  double MT2;
+  double mTbestWJet;
+  double mTbestbJet;
+
+
+
+// doExtraCuts: extra cuts other than the top tagger related, e.g., dphi cuts, HT cut and so on.
+    const bool doExtraCuts_;
+
+    const double mTbcut_, mTtcut_, MT2cut_, mTWcut_;
+// doMTMT2cuts: numbers are counted. But if enabled, some plots will be filled after all the cuts.
+    const bool doMTMT2cuts_;
+
+// PDG values (in GeV)
+    const double mW_, mTop_;
+
+    const double mWoverTop_;
+
+// const double lowRatioWoverTop = 0.85, highRatioWoverTop = 1.15;
+    const double lowRatioWoverTop_, highRatioWoverTop_;
+    const double lowArcTanm13overm12_, highArcTanm13overm12_, lowm23overm123_;
+
+    const double Rmin_, Rmax_;
+
+    const double defaultJetCone_;
+    const double simuCAdeltaR_;
+// Eta ranges from 0 to 5, phi ranges from 0 to 3.14.
+// sqrt(5./2.*5./2. + 3.14/2. * 3.14/2.) ~ 2.95
+// const double simuCALargerdeltaR = 3.0;
+    const double simuCALargerdeltaR_; // -1 means no deltaR requirement
+
+    const double lowTopCut_, highTopCut_;
+    const double lowWCut_, highWCut_;
+
+// Choose CSVM point for now
+// --> A good top fat jet might indicate a b-jet already,
+// so requiring another tight b-jet is NOT good. (TODO: to be studied)
+//    const double CSVL = 0.244, CSVM = 0.679, CSVT = 0.898;
+    const double CSVS_;
+
+    const int nSubJetsDiv_;
+
+    const int nJetsSel_;
+
+    const double maxEtaForbJets_;
+
+// mass   : mass ordering --> pick the one with mass closest to the norminal mass
+// pt     : pt ordering --> pick the one with larger pt (for the first two fat jets)
+// hybrid : pt ordering + mass ordering --> if both of the first two fat jets
+//          satisfying criteria, pick the one closer to the norminal mass
+    const std::vector<std::string> defaultOrderingOptVec;
+//                                                     best   remaining
+    const std::vector<std::string>  orderingOptArr_; // (mass, mass) is the best?
+    const std::vector<int> defaultMaxIndexForOrderingVec;
+    const std::vector<int> maxIndexForOrderingArr_;
+
+    const edm::InputTag metSrc_, jetSrc_;
+    const std::string bTagKeyString_;
+
+    edm::Handle<edm::View<reco::Jet> > jets;
+    edm::Handle<std::vector<pat::Jet> > patjets;
+    size nJets;
+    bool isPatJet;
+    virtual void loadRecoJets(const edm::Event& iEvent);
+
+    edm::Handle<edm::View<reco::MET> > metHandle;
+    double met, metphi;
+    virtual void loadMETMHT(const edm::Event& iEvent);
+
+    StringCutObjectSelector<reco::Jet,true> pfJetCutForJetCounting_; // lazy parsing, to allow cutting on variables not in reco::Candidate class
+    StringCutObjectSelector<reco::Jet,true> pfJetCutForJetCombining_; // lazy parsing, to allow cutting on variables not in reco::Candidate class
+    const edm::InputTag evtWeightInput_;
+    edm::Handle<double> evtWeight_;
+
+    unsigned int run, event, lumi; bool isData;
+    unsigned int vtxSize;
+    edm::Handle<edm::View<reco::Vertex> > vertices;
+    void loadEventInfo(const edm::Event& iEvent, const edm::EventSetup& iSetup);
+
+   
+    const bool taggingMode_;
+ 
+    const bool dobVetoCS_;
+  
+    int pickJetsForCombining(std::vector<TLorentzVector>& oriJetsVec, std::vector<double> &recoJetsBtagCSVS);
+//    int pickJetsForCombining(std::vector<TLorentzVector>& oriJetsVec, std::vector<double> &recoJetsBtagCSVS, std::vector<std::vector<TLorentzVector> > & oriJetsConstituentsVec, std::vector<std::vector<int> > & oriJetsConstituentsChargeVec, std::vector<std::vector<double> > & oriJetsConstituentsDzVec, std::vector<std::vector<double> > & oriJetsConstituentsD0Vec);
+    int countNJets();
+  
+
+  
+// The counters
+    double cntPassnJetsCut, cntTaggedTopEvents, cntTaggedTopEventsWithinMassCuts;
+    double cntTaggedAllCutsPlusCSVS;
+    double cntPassingMTbestTopJetCut, cntPassingMTclosebJetCut, cntPassingMTbestWJetCut;
+    double cntPassingMT2Cut, cntPassingMT2andMTCut;
+    double cntTaggedbestFatJetPlusCSVS;
+
+    topTagger::type3TopTagger *type3TopTaggerPtr;
+  
+  bool kFoundTwoMuons;
+
+};
+
+
+DiSTopStudyTree::DiSTopStudyTree(const edm::ParameterSet & iConfig):
+  doExtraCuts_(iConfig.getUntrackedParameter<bool>("doExtraCuts", true)),
+   mTbcut_(iConfig.getUntrackedParameter<double>("mTbcut", 500)),
+   mTtcut_(iConfig.getUntrackedParameter<double>("mTtcut", 365)),
+   MT2cut_(iConfig.getUntrackedParameter<double>("MT2cut", 300)),
+   mTWcut_(iConfig.getUntrackedParameter<double>("mTWcut", 600)),
+   doMTMT2cuts_(iConfig.getUntrackedParameter<bool>("doMTMT2cuts", true)),
+   mW_(iConfig.getUntrackedParameter<double>("mW", 80.385)),
+   mTop_(iConfig.getUntrackedParameter<double>("mTop", 173.5)),
+   mWoverTop_(mW_/mTop_),
+   lowRatioWoverTop_(iConfig.getUntrackedParameter<double>("lowRatioWoverTop", 0.85)),
+   highRatioWoverTop_(iConfig.getUntrackedParameter<double>("highRatioWoverTop", 1.25)),
+   lowArcTanm13overm12_(iConfig.getUntrackedParameter<double>("lowArcTanm13overm12", 0.2)),
+   highArcTanm13overm12_(iConfig.getUntrackedParameter<double>("highArcTanm13overm12", 1.3)),
+   lowm23overm123_(iConfig.getUntrackedParameter<double>("lowm23overm123", 0.35)),
+   Rmin_(lowRatioWoverTop_*mWoverTop_),
+   Rmax_(highRatioWoverTop_*mWoverTop_),
+   defaultJetCone_(iConfig.getUntrackedParameter<double>("defaultJetCone", 2.0)),
+   simuCAdeltaR_(iConfig.getUntrackedParameter<double>("simuCAdeltaR", 1.5)),
+   simuCALargerdeltaR_(iConfig.getUntrackedParameter<double>("simuCALargerdeltaR", -1)),
+   lowTopCut_(iConfig.getUntrackedParameter<double>("lowTopCut", 80)),
+   highTopCut_(iConfig.getUntrackedParameter<double>("highTopCut", 270)),
+   lowWCut_(iConfig.getUntrackedParameter<double>("lowWCut", 50)),
+   highWCut_(iConfig.getUntrackedParameter<double>("highWCut", 120)),
+   CSVS_(iConfig.getUntrackedParameter<double>("CSVS", 0.679)),
+   nSubJetsDiv_(iConfig.getUntrackedParameter<int>("nSubJetsDiv", 3)),
+   nJetsSel_(iConfig.getUntrackedParameter<int>("nJetsSel", 5)),
+   maxEtaForbJets_(iConfig.getUntrackedParameter<double>("maxEtaForbJets", 2.4)),
+   defaultOrderingOptVec(defaultOrderingOptArr, defaultOrderingOptArr+sizeof(defaultOrderingOptArr)/sizeof(defaultOrderingOptArr[0])),
+   orderingOptArr_(iConfig.getUntrackedParameter<std::vector<std::string> >("orderingOptArr", defaultOrderingOptVec)),
+   defaultMaxIndexForOrderingVec(defaultMaxIndexForOrderingArr, defaultMaxIndexForOrderingArr+sizeof(defaultMaxIndexForOrderingArr)/sizeof(defaultMaxIndexForOrderingArr[0])),
+   maxIndexForOrderingArr_(iConfig.getUntrackedParameter<std::vector<int> >("maxIndexForOrderingArr", defaultMaxIndexForOrderingVec)),
+   metSrc_(iConfig.getParameter<edm::InputTag>("metSrc")),
+   jetSrc_(iConfig.getParameter<edm::InputTag>("jetSrc")),
+   bTagKeyString_(iConfig.getUntrackedParameter<std::string>("bTagKeyString", "combinedSecondaryVertexBJetTags")),
+   pfJetCutForJetCounting_(iConfig.existsAs<std::string>("pfJetCutForJetCounting") ? iConfig.getParameter<std::string>("pfJetCutForJetCounting") : "", true),
+   pfJetCutForJetCombining_(iConfig.existsAs<std::string>("pfJetCutForJetCombining") ? iConfig.getParameter<std::string>("pfJetCutForJetCombining") : "", true),
+   evtWeightInput_(iConfig.getParameter<edm::InputTag>("evtWeightInput")),
+   vtxSrc_(iConfig.getParameter<edm::InputTag>("vtxSrc")),
+   debug_(iConfig.getUntrackedParameter<bool>("debug", true)),
+   taggingMode_(iConfig.getUntrackedParameter<bool>("taggingMode", true)),
+   dobVetoCS_(iConfig.getUntrackedParameter<bool>("dobVetoCS", false))
+
+ {
+  debug_       = iConfig.getParameter<bool>("Debug");
+  isDimuonSample_= iConfig.getParameter<bool>("isDimuonSample");
+  isMC_= iConfig.getParameter<bool>("isMC");
+  
+  //  topTagger = new TopTagger(iConfig);
+
+  vtxSrc_      = iConfig.getParameter<edm::InputTag>("VertexSource");
+  doPUReWeight_= iConfig.getParameter<bool>("DoPUReweight");
+//J  puWeigthSrc_ = iConfig.getPararmeter<edm::InputTag>("PUWeigthSource");
+  pfMetSrc_    = iConfig.getParameter<edm::InputTag>("PFMetSource");
+  jetAllsrc_   = iConfig.getParameter<edm::InputTag>("JetAllSource");
+  btagname_    = iConfig.getParameter<std::string>  ("bTagName");
+  mhtSrc_      = iConfig.getParameter<edm::InputTag>("MHTSource");
+  htSrc_       = iConfig.getParameter<edm::InputTag>("HTSource");
+  muonVetoSrc_ = iConfig.getParameter<edm::InputTag>("MuonVetoSrc");
+  eleVetoSrc_  = iConfig.getParameter<edm::InputTag>("EleVetoSrc");
+
+  saveAllMuons_= iConfig.getParameter<bool>("SaveAllMuons");
+  muonSrc_     = iConfig.getParameter<edm::InputTag>("MuonSource");
+  minMuPt_     = iConfig.getParameter<double>("MinMuPt");
+  maxMuEta_    = iConfig.getParameter<double>("MaxMuEta");
+  maxMuD0_     = iConfig.getParameter<double>("MaxMuD0");
+  maxMuDz_     = iConfig.getParameter<double>("MaxMuDz");
+  maxMuRelIso_ = iConfig.getParameter<double>("MaxMuRelIso");
+  pfCandidateSrc_ = iConfig.getParameter<edm::InputTag>("PFCandidateSrc");
+
+   cntPassnJetsCut =0; cntTaggedTopEvents =0; cntTaggedTopEventsWithinMassCuts =0;
+   cntTaggedAllCutsPlusCSVS =0;
+   cntPassingMTbestTopJetCut =0; cntPassingMTclosebJetCut =0;
+   cntPassingMT2Cut =0; cntPassingMT2andMTCut =0; cntPassingMTbestWJetCut =0;
+   cntTaggedbestFatJetPlusCSVS =0;
+
+   type3TopTaggerPtr = new topTagger::type3TopTagger();
+
+   type3TopTaggerPtr->setdoExtraCuts(doExtraCuts_);
+   type3TopTaggerPtr->setmTbcut(mTbcut_);
+   type3TopTaggerPtr->setmTtcut(mTtcut_);
+   type3TopTaggerPtr->setMT2cut(MT2cut_);
+   type3TopTaggerPtr->setmTWcut(mTWcut_);
+   type3TopTaggerPtr->setdoMTMT2cuts(doMTMT2cuts_);
+   type3TopTaggerPtr->setPDGmWmTop(mW_, mTop_);
+   type3TopTaggerPtr->setlowRatioWoverTop(lowRatioWoverTop_);
+   type3TopTaggerPtr->sethighRatioWoverTop(highRatioWoverTop_);
+   type3TopTaggerPtr->setlowArcTanm13overm12(lowArcTanm13overm12_);
+   type3TopTaggerPtr->sethighArcTanm13overm12(highArcTanm13overm12_);
+   type3TopTaggerPtr->setlowm23overm123(lowm23overm123_);
+   type3TopTaggerPtr->setdefaultJetCone(defaultJetCone_);
+   type3TopTaggerPtr->setsimuCAdeltaR(simuCAdeltaR_);
+   type3TopTaggerPtr->setsimuCALargerdeltaR(simuCALargerdeltaR_);
+   type3TopTaggerPtr->setlowTopCut(lowTopCut_);
+   type3TopTaggerPtr->sethighTopCut(highTopCut_);
+   type3TopTaggerPtr->setlowWCut(lowWCut_);
+   type3TopTaggerPtr->sethighWCut(highWCut_);
+   type3TopTaggerPtr->setCSVS(CSVS_);
+   type3TopTaggerPtr->setnSubJetsDiv(nSubJetsDiv_);
+   type3TopTaggerPtr->setnJetsSel(nJetsSel_);
+   type3TopTaggerPtr->setmaxEtaForbJets(maxEtaForbJets_);
+   type3TopTaggerPtr->setorderingOptArr(orderingOptArr_);
+   type3TopTaggerPtr->setmaxIndexForOrderingArr(maxIndexForOrderingArr_);
+   type3TopTaggerPtr->setdebug(debug_);
+   type3TopTaggerPtr->settaggingMode(taggingMode_);
+   type3TopTaggerPtr->setdobVetoCS(dobVetoCS_);
+
+   kFoundTwoMuons = false;
+
+}
+
+
+DiSTopStudyTree::~DiSTopStudyTree() {
+}
+
+
+void DiSTopStudyTree::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
+  
+  using namespace edm;
+
+  iSetup.getData( pdt_ );
+
+  clearTreeVectors();
+
+  // fill event ID 
+  t_EvtRun   = iEvent.id().run();
+  t_EvtLS    = iEvent.luminosityBlock();
+  t_EvtEvent = iEvent.id().event();
+
+  
+  iEvent.getByLabel("source", product);
+   
+  // save number of vertices and position of primary vertex
+  edm::Handle< std::vector<reco::Vertex> > vertices;
+  iEvent.getByLabel(vtxSrc_, vertices);
+  if(vertices->size()<1) std::cout << "No vertices are reconstructed - check StdCleaning ?" << std::endl;
+
+  t_NVertices = vertices->size();
+  
+  reco::Vertex::Point vtxpos = (vertices->size() > 0 ? (*vertices)[0].position() : reco::Vertex::Point());
+
+  // save pileup weight
+  /*J
+  double pu_event_wt = 1.0;
+  edm::Handle<double> puweight;
+  if( doPUReWeight_ ) {
+    iEvent.getByLabel(puWeigthSrc_, puweight);
+    pu_event_wt = *puweight;
+  }
+  t_PUWeight = pu_event_wt;
+
+  if(debug_)std::cout << "t_NVertices " << t_NVertices << "  t_PUWeight " << t_PUWeight << std::endl;
+  J*/
+
+  //save vertex info for PU weight:
+  edm::Handle<std::vector<PileupSummaryInfo> > PupInfo;
+  iEvent.getByLabel( edm::InputTag("addPileupInfo"),PupInfo);
+  
+  vector<PileupSummaryInfo>::const_iterator PVI;
+  
+  float Tnpv = -1;
+  for(PVI = PupInfo->begin(); PVI !=PupInfo->end(); ++PVI) {
+    
+    int BX = PVI->getBunchCrossing();
+    
+    if(BX == 0) {
+      Tnpv = PVI->getTrueNumInteractions();
+      continue;
+    }
+  }
+  t_TrueNPV = Tnpv;
+
+  /* DCH not keeping the puWeights vector, just keep TrueNPV
+  //save PU weight:
+  if(doPUReWeight_) {
+    if(Tnpv < static_cast<int> (puWeights_.size())) {
+      t_PUWeight *= puWeights_[Tnpv];
+    }
+    else {
+      cout << "WARNING ... number of PU vertices = " << Tnpv << " out of histogram binning." << endl;
+      t_PUWeight = -99;
+    }
+  }
+  else t_PUWeight = -99;
+  */
+
+  // save missing transverse energy
+  edm::Handle < std::vector<pat::MET> > met;
+  iEvent.getByLabel(pfMetSrc_, met);
+  //  TLorentzVector *lvMET = new TLorentzVector();
+  for (std::vector<pat::MET>::const_iterator it = met->begin(); it != met->end(); ++it) {
+    t_PFMetPx = it->px();
+    t_PFMetPy = it->py();
+    t_PFMetE = it->pt();  
+    t_PFMetPhi = it->phi();  
+    t_PFMetSignificance =     it->significance();   
+  }
+  //  cout<<t_PFMetPx<<" : "<<t_PFMetPy<<" : "<<t_PFMetE<<" : "<<t_PFMetPhi<<" : "<<endl;
+
+
+  //Build the lorentz vector for MET 
+  TLorentzVector lvMET;
+  lvMET.SetPx(t_PFMetPx);
+  lvMET.SetPy(t_PFMetPy);
+  lvMET.SetE(t_PFMetE);
+  lvMET.SetPhi(t_PFMetPhi);
+
+  if(isMC_){
+    Handle<std::vector<double> > reweightVector;
+    if(  iEvent.getByLabel("QCDScaleWeightProducer","weight",reweightVector)){
+      for(std::vector<double>::const_iterator dWeight=reweightVector->begin(); dWeight !=reweightVector->end(); ++dWeight){
+	double dTemp = (*dWeight);
+	t_QCDReweight->push_back(dTemp);
+      }
+    }
+
+
+      // check LHEProduct
+    //edm::Handle<LHEEventProduct> product;
+    // iEvent.getByLabel("source", product);
+    LHEEventProduct::comments_const_iterator c_begin = product->comments_begin();
+    LHEEventProduct::comments_const_iterator c_end   = product->comments_end();
+    
+    /*   for( LHEEventProduct::comments_const_iterator cit=c_begin; cit!=c_end; ++cit) {
+      std::cout << "%%%%%%%%%%%%%%%%%%% "<< *cit << std::endl;
+    }
+    */
+    
+    //get HEPEUP object
+    const lhef::HEPEUP hepeup = product->hepeup();
+    //const std::vector<lhef::HEPEUP::FiveVector> pup = hepeup.PUP;
+    
+    int nPartonsLHE = 0;
+    double htLHE=0.0, htLepLHE=0.0;
+    TLorentzVector mhtLHE   (0.0, 0.0, 0.0, 0.0);
+    TLorentzVector mhtLepLHE(0.0, 0.0, 0.0, 0.0);
+    TLorentzVector dilepLHE (0.0, 0.0, 0.0, 0.0);
+    int            dilepId=-99;
+    std::vector<TLorentzVector> lepLHE;
+    std::vector<TLorentzVector> partonLHE;
+    
+    // calculate some global variables based on LHE quantities
+    double lheZMass = -1;
+    double lheZPt   = -1;
+    
+    
+    // loop over outgoing particles
+    for(int ip = 2; ip < hepeup.NUP; ++ip) {
+      
+      TLorentzVector vPart(hepeup.PUP[ip][0], hepeup.PUP[ip][1], hepeup.PUP[ip][2], hepeup.PUP[ip][3] );
+      
+      if( hepeup.IDUP[ip]==23 ) {
+	lheZMass = hepeup.PUP[ip][4];
+	lheZPt   = vPart.Pt();
+      }
+      
+      // print LHE entries
+      if( debug_ ) {
+	std::cout << ip << " " << "status " << hepeup.ISTUP[ip]
+		  << " PID " << hepeup.IDUP[ip]
+		  << " pT " << vPart.Pt()
+		  << std::endl;
+      }
+      
+      // check LHE HT, MHT of event using stable particles
+      if( hepeup.ISTUP[ip]==1 ) {
+	htLepLHE  += vPart.Pt();
+	mhtLepLHE -= vPart;
+	if( hepeup.IDUP[ip]==21 || (std::abs(hepeup.IDUP[ip])>0 && std::abs(hepeup.IDUP[ip])<7) ) {
+	  nPartonsLHE++;
+	  htLHE    += vPart.Pt();
+	  mhtLHE   -= vPart;
+	  partonLHE.push_back(vPart);
+	} else if( std::abs(hepeup.IDUP[ip])>10 && std::abs(hepeup.IDUP[ip])<17) {
+	  dilepLHE += vPart;
+	  lepLHE.push_back(vPart);
+	  dilepId = std::abs(hepeup.IDUP[ip]);
+	}
+      }
+    }
+    
+    //  cout<<"GenLevel HT is : "<<htLHE<<endl;
+
+    t_Genht =  htLHE;
+    t_Genmht =  mhtLHE.Pt();
+
+  }   
+
+  //========= save gen info
+
+  if(isMC_){
+    edm::Handle<View<reco::Candidate> > particles;
+    iEvent.getByLabel( "genParticles", particles );
+    
+    for( View<reco::Candidate>::const_iterator p = particles->begin();   p != particles->end(); ++ p ) {
+      
+      //    const ParticleData * pd = pdt_->particle( p->pdgId() );  
+      
+     if(  std::abs(p->pdgId())==13 ){
+	
+      
+      t_genPartPdgId  ->push_back(p->pdgId());
+      t_genPartStatus ->push_back(p->status());
+      t_genPartPt     ->push_back(p->pt());
+      t_genPartEta    ->push_back(p->eta());
+      t_genPartPhi    ->push_back(p->phi());
+      t_genPartE      ->push_back(p->energy());
+      
+     }//if a status=3 W or b
+      
+      //delete pd;
+    } //loop over gen particles
+    
+    //================
+  }
+
+
+
+  if(isDimuonSample_){
+    kFoundTwoMuons = false;
+    // save all muons and related information
+    edm::Handle<std::vector<pat::Muon> > muons;
+    iEvent.getByLabel(muonSrc_, muons);
+    
+    int imuon =0;
+    if (vertices->size() > 0) {
+      for (std::vector<pat::Muon>::const_iterator m = muons->begin(); m != muons->end(); ++m) {
+
+	if (m->muonID("AllGlobalMuons") != 0) {
+	
+	  // it should be a PFMuon
+	  if(!m->isPFMuon() ) continue; 
+
+	  // acceptance cuts
+	  if (m->pt() < 20)              continue;
+	  if (std::abs(m->eta()) >= maxMuEta_) continue;
+	  if(debug_) {std::cout << "Passed Kinematic cuts " << std::endl;}
+	  
+	  double muRelIso   = (m->pfIsolationR04().sumChargedHadronPt + std::max(0., m->pfIsolationR04().sumNeutralHadronEt + m->pfIsolationR04().sumPhotonEt - 0.5*m->pfIsolationR04().sumPUPt) )/ m->pt();
+	  double muRelIso03 = (m->pfIsolationR03().sumChargedHadronPt + std::max(0., m->pfIsolationR03().sumNeutralHadronEt + m->pfIsolationR03().sumPhotonEt - 0.5*m->pfIsolationR03().sumPUPt) )/ m->pt();
+
+
+
+	  bool muonPassId = true;
+	  if( m->globalTrack()->normalizedChi2() >= 10. ||
+	      m->globalTrack()->hitPattern().numberOfValidMuonHits() <=0 || 
+	      m->numberOfMatchedStations() <=1 || 
+	      m->innerTrack()->hitPattern().numberOfValidPixelHits() == 0  || 
+	      m->innerTrack()->hitPattern().trackerLayersWithMeasurement() <=5 ) muonPassId = false;
+	  if(debug_ && muonPassId) {std::cout << "PassedMuon ID" << std::endl;}
+
+
+	
+	  // vertex association cuts - ignore if no vertex (see further)
+	  bool muonVtxAss = true;
+	  if (std::abs(m->innerTrack()->dxy(vtxpos)) >= maxMuD0_ ||
+	      std::abs(m->innerTrack()->dz(vtxpos))  >= maxMuDz_ )   muonVtxAss = false;
+	  if(debug_ && muonPassId && muonVtxAss) {std::cout << "PassedMuon Vtx Association" << std::endl;}
+	  
+
+      
+	  // isolation cuts     
+	  bool  muonIsolation = true;
+	  if (muRelIso >= maxMuRelIso_) muonIsolation = false;
+	  	
+
+	  if(debug_ && muonPassId && muonVtxAss && muonIsolation) {std::cout << "PassedMuon Isolation" << std::endl;}
+	
+
+	  
+	  if(!(muonPassId && muonVtxAss && muonIsolation))
+            continue;
+
+
+	  
+	
+	  t_PFMuonPt             ->push_back(m->pt() );
+	  t_PFMuonEta            ->push_back(m->eta());    
+	  t_PFMuonPhi            ->push_back(m->phi());
+	  t_PFMuonE              ->push_back(m->energy());
+	  t_PFMuonCh             ->push_back(m->charge());
+	  t_PFMuonChiSq          -> push_back(m->globalTrack()->normalizedChi2()); 
+	  t_PFMuonValidMuonHits  -> push_back(m->globalTrack()->hitPattern().numberOfValidMuonHits()); 
+	  t_PFMuonMatchedStations-> push_back(m->numberOfMatchedStations()); 
+	  t_PFMuonValidPixelHits -> push_back(m->innerTrack()->hitPattern().numberOfValidPixelHits()); 
+	  t_PFMuonTrackerLayerMeasured-> push_back(m->innerTrack()->hitPattern().trackerLayersWithMeasurement());
+	  t_PFMuonCharHadEt      -> push_back(m->pfIsolationR04().sumChargedHadronPt); 
+	  t_PFMuonNeutHadEt      -> push_back(m->pfIsolationR04().sumNeutralHadronEt); 
+	  t_PFMuonPhotEt         -> push_back(m->pfIsolationR04().sumPhotonEt); 
+	  t_PFMuonSumPUPt        -> push_back(m->pfIsolationR04().sumPUPt); 
+	  t_PFMuonRelIso         -> push_back(muRelIso);
+	  t_PFMuonCharHadEt03    -> push_back(m->pfIsolationR03().sumChargedHadronPt); 
+	  t_PFMuonNeutHadEt03    -> push_back(m->pfIsolationR03().sumNeutralHadronEt); 
+	  t_PFMuonPhotEt03       -> push_back(m->pfIsolationR03().sumPhotonEt); 
+	  t_PFMuonSumPUPt03      -> push_back(m->pfIsolationR03().sumPUPt); 
+	  t_PFMuonRelIso03       -> push_back(muRelIso03);
+
+	  /*	  // Javier removed this block
+	  double mu_diriso01_=customIsolation(reco::PFCandidate::mu, *m, pfCands, 0.1, true, false);
+	  double mu_diriso02_=customIsolation(reco::PFCandidate::mu, *m, pfCands, 0.2, true, false);
+	  double mu_diriso03_=customIsolation(reco::PFCandidate::mu, *m, pfCands, 0.3, true, false);
+	  double mu_diriso04_=customIsolation(reco::PFCandidate::mu, *m, pfCands, 0.4, true, false);
+	  double mu_diriso05_=customIsolation(reco::PFCandidate::mu, *m, pfCands, 0.5, true, false);
+	  t_PFMuonDirIso01 -> push_back(mu_diriso01_);
+	  t_PFMuonDirIso02 -> push_back(mu_diriso02_); 
+	  t_PFMuonDirIso03 -> push_back(mu_diriso03_); 
+	  t_PFMuonDirIso04 -> push_back(mu_diriso04_); 
+	  t_PFMuonDirIso05 -> push_back(mu_diriso05_);
+	  //	 Till here 
+	  */
+	  
+	  t_PFMuonID-> push_back(muonPassId);
+	  t_PFMuonVtxAss->push_back(muonVtxAss);
+	  t_PFMuonIsolated ->push_back(muonIsolation);
+	  t_PFMuonIDVtxIso->push_back( (muonPassId && muonVtxAss && muonIsolation) );
+
+
+	  /*
+	
+	  // save gen info
+	  bool isWdau=false;
+	  bool isBdau=false;
+	  double rGenMuPt  = -99.0;
+	  double rGenMuEta = -99.0;
+	  double rGenMuPhi = -99.0;
+	  
+	  double dRmin = 99.0;
+	  int iiMin=-1, jjMin=-1;
+	  if( muonPassId && muonVtxAss) {
+	    for(int ii=0; ii<t_genPartPdgId->size(); ii++) {
+	      for(int jj=0; jj<(*t_genPartPdgId)[ii].size(); jj++) {
+		if( std::abs((*t_genPartPdgId)[ii][jj])==13 && ((*t_genPartStatus)[ii][jj]==1 || (*t_genPartStatus)[ii][jj]==3) ) {
+		  //if( std::abs((*t_genPartPdgId)[ii][jj])==13 && (*t_genPartStatus)[ii][jj]==1 ) {
+		  double rMuEta = m->eta();
+		  double rMuPhi = m->phi();
+		  double gMuEta = (*t_genPartEta)[ii][jj];
+		  double gMuPhi = (*t_genPartPhi)[ii][jj];
+		  double dR     = reco::deltaR( rMuEta, rMuPhi, gMuEta, gMuPhi);
+		  if(dR<dRmin) { dRmin = dR; iiMin=ii; jjMin=jj; }
+		}
+	      }
+	    }
+	  
+	    if(dRmin<0.15 && iiMin>=0 && jjMin>=0) {
+	      if( (*t_genPartDecayMode)[iiMin]==anautils::WMUNU || (*t_genPartDecayMode)[iiMin]==anautils::WTAUNU_MUNU){
+		isWdau = true;
+		isBdau = false;
+	      } else if( (*t_genPartDecayMode)[iiMin]==anautils::BQUARK_MUNU) {
+		isWdau = false;
+		isBdau = true;
+	      }
+	      rGenMuPt  = (*t_genPartPt) [iiMin][jjMin];
+	      rGenMuEta = (*t_genPartEta)[iiMin][jjMin];
+	      rGenMuPhi = (*t_genPartPhi)[iiMin][jjMin];
+	    }
+	  }
+	  //std::cout << "isWdau "  << isWdau << "  isBdau " << isBdau << std::endl;
+	  
+	  t_PFMuonIsWdau  ->push_back(isWdau);
+	  t_PFMuonIsBdau  ->push_back(isBdau);
+	  t_PFMuonGenMuPt ->push_back(rGenMuPt);
+	  t_PFMuonGenMuEta->push_back(rGenMuEta);
+	  t_PFMuonGenMuPhi->push_back(rGenMuPhi);
+	  */
+	
+	} // all global muons
+      } // loop over muons
+    } // atleast one vertex, just a protection    
+    
+    if(!isMC_){
+      if((*t_PFMuonPt).size()<2)
+	return;
+    }
+ 
+ 
+    if(((*t_PFMuonPt).size()>=2)){
+  
+      if((*t_PFMuonCh)[0]!=(*t_PFMuonCh)[1]){
+	
+	kFoundTwoMuons = true;
+	//Find the first Muon
+	lvMuon1.SetPtEtaPhiE((*t_PFMuonPt)[0],(*t_PFMuonEta)[0],(*t_PFMuonPhi)[0],(*t_PFMuonE)[0]);
+	
+	//Find the second muon
+	lvMuon2.SetPtEtaPhiE((*t_PFMuonPt)[1],(*t_PFMuonEta)[1],(*t_PFMuonPhi)[1],(*t_PFMuonE)[1]);
+	
+	
+	TLorentzVector lvZ =  lvMuon1 + lvMuon2;
+	
+	t_PFMuonZPt = lvZ.Pt();
+	t_PFMuonZEta  = lvZ.Eta();
+	t_PFMuonZPhi  = lvZ.Phi();
+	t_PFMuonZE  = lvZ.E();
+	t_PFMuonZMass  = lvZ.M();
+	
+	lvMET = lvMET +  lvMuon1 + lvMuon2;
+	
+	t_PFMetPx = lvMET.Px();
+	t_PFMetPy = lvMET.Py();
+	t_PFMetE = lvMET.Pt();  
+	t_PFMetPhi = lvMET.Phi();  
+      }
+      
+    }
+
+  }
+
+  
+  // save ra2 ht/mht mainly for debugging only
+  edm::Handle<double> ht;
+  iEvent.getByLabel(htSrc_, ht);
+  t_PFht  = *ht;
+  
+  edm::Handle<edm::View<reco::MET> > mht;
+  iEvent.getByLabel(mhtSrc_, mht);
+  t_PFmht = (*mht)[0].pt() ;
+
+  // std::cout << "ht " << t_PFht << " mht " << t_PFmht << std::endl;
+
+
+  // save all jets along with btag information
+  edm::Handle<edm::View<pat::Jet> > jetsAll;
+  iEvent.getByLabel(jetAllsrc_, jetsAll);
+
+  t_NJetsPt30Eta2p5 = 0;
+  t_NJetsPt30Eta5p0 = 0; 
+  t_NJetsPt50Eta2p5 = 0;
+  t_NJetsPt50Eta5p0 = 0;
+
+  iNJets = 0;
+  Int_t iBTagTight = 0;
+  Int_t iBTagLoose = 0;
+
+ 
+  for(unsigned int ijet=0; ijet<jetsAll->size(); ijet++) {
+
+    //check if there are 6 jets with pt > 30 
+    if( (*jetsAll)[ijet].pt() > 30.0 ) {
+   
+      if(isDimuonSample_&& kFoundTwoMuons){
+	
+	if(deltaR((*jetsAll)[ijet].eta(), (*jetsAll)[ijet].phi(),lvMuon1.Eta(),lvMuon1.Phi())<0.3)
+	  continue;
+	if(deltaR((*jetsAll)[ijet].eta(), (*jetsAll)[ijet].phi(),lvMuon2.Eta(),lvMuon2.Phi())<0.3)
+	  continue;
+      }
+
+      t_PFJetPt  ->push_back((*jetsAll)[ijet].pt() );
+      t_PFJetEta ->push_back((*jetsAll)[ijet].eta());    
+      t_PFJetPhi ->push_back((*jetsAll)[ijet].phi());
+      t_PFJetE   ->push_back((*jetsAll)[ijet].energy()  );
+      t_PFJetBTag->push_back((*jetsAll)[ijet].bDiscriminator(btagname_.c_str()) );
+
+      if( (*jetsAll)[ijet].pt()>30.0 && std::abs((*jetsAll)[ijet].eta())<5.0 )
+	t_NJetsPt30Eta5p0++;
+      if( (*jetsAll)[ijet].pt()>30.0 && std::abs((*jetsAll)[ijet].eta())<2.5 )
+	t_NJetsPt30Eta2p5++;
+      if( (*jetsAll)[ijet].pt()>50.0 && std::abs((*jetsAll)[ijet].eta())<5.0 )
+	t_NJetsPt50Eta5p0++;
+      if( (*jetsAll)[ijet].pt()>50.0 && std::abs((*jetsAll)[ijet].eta())<2.5 )
+	t_NJetsPt50Eta2p5++;
+  
+      if(iNJets<6){
+	if((*t_PFJetBTag)[iNJets]>0.68)
+	  iBTagTight++;
+	
+	if((*t_PFJetBTag)[iNJets]>0.25&&(*t_PFJetBTag)[iNJets]<0.68)
+	  iBTagLoose++;
+      }
+  
+      iNJets++;
+     
+    }
+ 
+  }
+
+  //************************Code for Dans Tagger *******************************//
+
+  //Check if there are 6 jets && atleast one tight btag && atleast one tight + one loose btag
+  if(iNJets>=6 && iBTagLoose>0 && iBTagTight > 0){
+  
+    unsigned  int indexJet[4] ;
+    unsigned  int indexJetWTagged[4] ;
+    
+    std::vector<TLorentzVector> inputJetsToTagger;
+    
+    int iBJetCount = -1;
+    int iNonBJetCount = -1;
+    //Find the btagged jets 
+    for(unsigned int ijet=0; ijet<6; ijet++) {
+      //      inputJetsToTagger.
+      TLorentzVector tempVector;
+      tempVector.SetPtEtaPhiE((*t_PFJetPt)[ijet],(*t_PFJetEta)[ijet],(*t_PFJetPhi)[ijet],(*t_PFJetE)[ijet]);
+    
+
+      inputJetsToTagger.push_back(tempVector);
+  
+      if((*t_PFJetBTag)[ijet]>0.25 && iBJetCount<1){
+	iBJetCount++;
+	if(iBJetCount==0){
+	  indexB1=ijet;
+	  //calculate the delta phi cut with respect to the MET
+	  t_DTdPhi1 = deltaPhi(t_PFMetPhi,(*t_PFJetPhi)[ijet]);
+	}
+	if(iBJetCount==1){
+	  indexB2=ijet;
+	  //calculate the delta phi cut with respet to MET
+	  t_DTdPhi2 = deltaPhi(t_PFMetPhi,(*t_PFJetPhi)[ijet]); 
+	}
+      }else{
+	iNonBJetCount++;
+	indexJet[iNonBJetCount]=ijet; 
+      }
+    
+    }
+
+
+
+
+    //W mass combinorotics
+    double dMassWCombination[6];
+    dMassWCombination[0]= (inputJetsToTagger[indexJet[0]]+inputJetsToTagger[indexJet[1]]).M();
+    dMassWCombination[3]= (inputJetsToTagger[indexJet[2]]+inputJetsToTagger[indexJet[3]]).M();
+    dMassWCombination[1]= (inputJetsToTagger[indexJet[0]]+inputJetsToTagger[indexJet[2]]).M();
+    dMassWCombination[4]= (inputJetsToTagger[indexJet[1]]+inputJetsToTagger[indexJet[3]]).M();
+    dMassWCombination[2]= (inputJetsToTagger[indexJet[0]]+inputJetsToTagger[indexJet[3]]).M();
+    dMassWCombination[5]= (inputJetsToTagger[indexJet[1]]+inputJetsToTagger[indexJet[2]]).M();
+    
+    //W mass chiquared index
+    double dWMassChiquared[3];
+    double WMass = 80.35;
+    double minChisquared = 99999;
+    int iLeastChisquared = -1;
+    
+    for(int i=0;i<3;i++){
+      dWMassChiquared[i]=TMath::Power(dMassWCombination[i]-WMass,2.0)+TMath::Power(dMassWCombination[i+3]-WMass,2.0);
+      //      cout<<dMassWCombination[i]<<" : "<<dMassWCombination[i+3]<<" ("<<dWMassChiquared[i]<<")"<<endl;
+      if(i==0){
+	minChisquared=dWMassChiquared[i];
+	iLeastChisquared = 0;
+      }else{
+	if(dWMassChiquared[i]<minChisquared){
+	  minChisquared = dWMassChiquared[i];
+	  iLeastChisquared = i;
+	}
+      }
+    }
+
+    //    cout<<minChisquared<<endl;
+
+    t_DTWMassChiSqr1 = minChisquared;
+
+    switch(iLeastChisquared){
+    case 0:
+      indexJetWTagged[0]=indexJet[0];
+      indexJetWTagged[1]=indexJet[1];
+      indexJetWTagged[2]=indexJet[2];
+      indexJetWTagged[3]=indexJet[3];
+      break;
+    case 1:
+      indexJetWTagged[0]=indexJet[0];
+      indexJetWTagged[1]=indexJet[2];
+      indexJetWTagged[2]=indexJet[1];
+      indexJetWTagged[3]=indexJet[3];
+      break;
+    case 2:
+      indexJetWTagged[0]=indexJet[0];
+      indexJetWTagged[1]=indexJet[3];
+      indexJetWTagged[2]=indexJet[1];
+      indexJetWTagged[3]=indexJet[2];
+      break;
+    }
+
+    
+    //Look for a W in the light jets 
+    t_DTWMass1 = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]).M();
+    t_DTWMass2 = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]).M();
+    
+    //Look for the best Top mass 
+    double dTempTopMass[4];
+    double dTempTopPt[4];
+    double dTempTopEta[4];
+    double dTempTopPhi[4];
+
+    dTempTopMass[0] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]).M();
+    dTempTopMass[1] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB2]).M();
+    dTempTopMass[2] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]).M();
+    dTempTopMass[3] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB1]).M();
+    
+    dTempTopPt[0] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]).Pt();
+    dTempTopPt[1] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB2]).Pt();
+    dTempTopPt[2] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]).Pt();
+    dTempTopPt[3] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB1]).Pt();
+
+    dTempTopEta[0] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]).Eta();
+    dTempTopEta[1] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB2]).Eta();
+    dTempTopEta[2] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]).Eta();
+    dTempTopEta[3] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB1]).Eta();
+
+    dTempTopPhi[0] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]).Phi();
+    dTempTopPhi[1] = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB2]).Phi();
+    dTempTopPhi[2] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]).Phi();
+    dTempTopPhi[3] = (inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB1]).Phi();
+
+ 
+
+    //build top mass chi squared
+    double dTopMassChiquared[2];
+    double TopMass = 172.9;
+    minChisquared = 9999999;
+    iLeastChisquared = -1;
+   
+ 
+    for(int i=0;i<2;i++){
+      dTopMassChiquared[i]=TMath::Power(dTempTopMass[i]-TopMass,2.0)+TMath::Power(dTempTopMass[i+2]-TopMass,2.0);
+      if(dTopMassChiquared[i]<minChisquared){
+	minChisquared = dTopMassChiquared[i];
+	iLeastChisquared = i;
+      }
+    }
+	
+   // cout<<minChisquared<<endl;
+
+    t_DTWMassChiSqr2 = minChisquared;
+
+    if(	iLeastChisquared == 0){
+      t_DTTopMass1 = dTempTopMass[0];
+      t_DTTopMass2 = dTempTopMass[2];
+      t_DTTopPt1 = dTempTopPt[0];
+      t_DTTopPt2 = dTempTopPt[2];
+      t_DTTopEta1 = dTempTopEta[0];
+      t_DTTopEta2 = dTempTopEta[2];
+      t_DTTopPhi1 = dTempTopPhi[0];
+      t_DTTopPhi2 = dTempTopPhi[2];
+      indexW11 = indexJetWTagged[0];
+      indexW12 = indexJetWTagged[1];
+      indexW21 = indexJetWTagged[2];
+      indexW22 = indexJetWTagged[3];
+    }else{
+      t_DTTopMass1 = dTempTopMass[1];
+      t_DTTopMass2 = dTempTopMass[3];
+      t_DTTopPt1 = dTempTopPt[1];
+      t_DTTopPt2 = dTempTopPt[3];
+      t_DTTopEta1 = dTempTopEta[1];
+      t_DTTopEta2 = dTempTopEta[3];
+      t_DTTopPhi1 = dTempTopPhi[1];
+      t_DTTopPhi2 = dTempTopPhi[3];
+      indexW11 = indexJetWTagged[2];
+      indexW12 = indexJetWTagged[3];
+      indexW21 = indexJetWTagged[0];
+      indexW22 = indexJetWTagged[1];
+    }
+
+    t_DTTopMu1 =  (min(min(inputJetsToTagger[indexW11].M(),inputJetsToTagger[indexW11].M()),inputJetsToTagger[indexB1].M()))/t_DTTopMass1;
+    t_DTTopMu2 =  (min(min(inputJetsToTagger[indexW21].M(),inputJetsToTagger[indexW21].M()),inputJetsToTagger[indexB2].M()))/t_DTTopMass2;
+  
+  
+    if(t_DTTopMu2<0.00001){
+      cout<<"*******************"<<endl;
+      cout<<iBJetCount<<" : "<<iNonBJetCount<<endl;
+      cout<<indexW21<<" : "<<indexW21<<" : "<<indexB2<<endl;
+      cout<<"***************************************"<<inputJetsToTagger[indexW21].M()<<" : "<<inputJetsToTagger[indexW21].M()<<" : "<<inputJetsToTagger[indexB2].M()<<endl;
+    }
+
+    t_DTTotalSystemMass = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]+inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]+lvMET).M();
+    t_DTTotalSystemPt = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]+inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]+lvMET).Pt();
+    t_DTTotalSystemEta = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]+inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]+lvMET).Eta();
+    t_DTTotalSystemPhi = (inputJetsToTagger[indexJetWTagged[0]]+inputJetsToTagger[indexJetWTagged[1]]+inputJetsToTagger[indexB1]+inputJetsToTagger[indexJetWTagged[2]]+inputJetsToTagger[indexJetWTagged[3]]+inputJetsToTagger[indexB2]+lvMET).Phi();
+     
+     
+  }
+
+  
+  // save no. of isolated/identified muons for veto
+  edm::Handle<edm::View<reco::Muon> > muonVeto;
+  iEvent.getByLabel(muonVetoSrc_, muonVeto);
+  t_NVetoMuon = muonVeto->size();
+
+  // save no. of isolated/identified electrons for veto
+  edm::Handle<std::vector<reco::GsfElectron> > eleVeto;
+  iEvent.getByLabel(eleVetoSrc_, eleVeto);
+  t_NVetoEle  = eleVeto->size();
+  
+  edm::Handle<std::vector<reco::PFCandidate> > pfCandidates;
+  iEvent.getByLabel(pfCandidateSrc_, pfCandidates);
+  const reco::PFCandidateCollection & pfCands = *pfCandidates;
+
+  //*****************************************************************8Code for HEP Top Tagger
+
+//J..
+  Handle<BasicJetCollection> HEPTopTaggedCandidateHandle; //Handle to vector containing all pre-tagged FatJets    
+  if(iEvent.getByLabel("HEPTopTagJets",HEPTopTaggedCandidateHandle)){;//Open FatJet
+    //   cout << "\n\n HEPTopTaggedCandidateHandle->size() " << HEPTopTaggedCandidateHandle->size() << endl;
+    //   for(size_t i = 0; i < HEPTopTaggedCandidateHandle->size(); ++i)
+    
+    t_fatJet1_m123 = -1;
+    t_fatJet1_m12 = -1;
+    t_fatJet1_m13 = -1;
+    t_fatJet1_m23 = -1;
+    t_fatJet1_pt123 = -1;
+    t_fatJet1_eta123 = -1111;
+    t_fatJet1_phi123 = -1111;
+    
+    
+    t_fatJet2_m123 = -1;
+    t_fatJet2_m12 = -1;
+    t_fatJet2_m13 = -1;
+    t_fatJet2_m23 = -1;
+    t_fatJet2_pt123 = -1;
+    t_fatJet2_eta123 = -1111;
+    t_fatJet2_phi123 = -1111;
+    
+    t_nFatJet = HEPTopTaggedCandidateHandle->size();
+    
+    t_fatJet1_cond1   = 0;
+    t_fatJet1_cond2   = 0;
+    t_fatJet1_cond3   = 0;
+    
+    t_fatJet2_cond1   = 0;
+    t_fatJet2_cond2   = 0;
+    t_fatJet2_cond3   = 0;
+    
+    for(size_t i = 0; i < HEPTopTaggedCandidateHandle->size(); ++i){
+      BasicJetRef itJet (HEPTopTaggedCandidateHandle,i);
+      reco::Jet::Constituents subjets = itJet->getJetConstituents();
+      reco::Candidate::LorentzVector p4_FatJet = itJet->p4();
+      
+      sort(subjets.begin(), subjets.end(), GreaterByPtCandPtr()); //Sort them by pt
+      reco::Candidate::LorentzVector p4_1=subjets[0]->p4();
+      reco::Candidate::LorentzVector p4_2=subjets[1]->p4();
+      reco::Candidate::LorentzVector p4_3=subjets[2]->p4();
+      //m:
+      double m123=(p4_1+p4_2+p4_3).mass();
+      double pt123=(p4_1+p4_2+p4_3).pt();
+      double eta123=(p4_1+p4_2+p4_3).eta();
+      double phi123=(p4_1+p4_2+p4_3).phi();
+      double m12=(p4_1+p4_2).mass();
+      double m13=(p4_1+p4_3).mass();
+      double m23=(p4_2+p4_3).mass();
+      
+      
+      //loose massCriteria constants
+      double _m13cutmin=0.2;
+      double _m13cutmax=1.3;
+      double _rmin=0.85*80.4/172.3;
+      double _rmax=1.15*80.4/172.3;
+      double _m23cut=0.35;
+      
+      bool Cond1=(atan(m13/m12)>_m13cutmin && _m13cutmax > atan(m13/m12) && (m23/m123>_rmin && _rmax>m23/m123));
+      bool Cond2=(((m23/m123)*(m23/m123) < 1-_rmin*_rmin*(1+(m13/m12)*(m13/m12))) &&
+		  ((m23/m123)*(m23/m123) > 1-_rmax*_rmax*(1+(m13/m12)*(m13/m12))) && (m23/m123 > _m23cut));
+      bool Cond3= (((m23/m123)*(m23/m123) < 1-_rmin*_rmin*(1+(m12/m13)*(m12/m13))) &&
+		   ((m23/m123)*(m23/m123) > 1-_rmax*_rmax*(1+(m12/m13)*(m12/m13))) && (m23/m123 > _m23cut));
+      
+      if( (subjets.size() == 3) ){
+	if(i==0){
+	  t_fatJet1_m123 = m123;
+	  t_fatJet1_pt123 = pt123;
+	  t_fatJet1_eta123 = eta123;
+	  t_fatJet1_phi123 = phi123;
+	  t_fatJet1_m12 = m12;
+	  t_fatJet1_m13 = m13;
+	  t_fatJet1_m23 = m23;
+	  
+	  t_fatJet1_cond1   = Cond1;
+	  t_fatJet1_cond2   = Cond2;
+	  t_fatJet1_cond3   = Cond3;
+	}else if(i==1){
+	  t_fatJet2_m123 = m123;
+	  t_fatJet2_pt123 = pt123;
+	  t_fatJet2_eta123 = eta123;
+	  t_fatJet2_phi123 = phi123;
+	  t_fatJet2_m12 = m12;
+	  t_fatJet2_m13 = m13;
+	  t_fatJet2_m23 = m23;
+	  
+	  t_fatJet2_cond1   = Cond1;
+	  t_fatJet2_cond2   = Cond2;
+	  t_fatJet2_cond3   = Cond3;
+	}
+	
+	std::vector<double> tmpPt, tmpEta, tmpPhi, tmpE;
+	for(size_t j = 0; j<subjets.size(); ++j){
+	  tmpPt .push_back(subjets[j]->p4().pt());
+	  tmpEta.push_back(subjets[j]->p4().eta());
+	  tmpPhi.push_back(subjets[j]->p4().phi());
+	  tmpE  .push_back(subjets[j]->p4().energy());
+	}
+	t_fatJetSubJetPt ->push_back(tmpPt );
+	t_fatJetSubJetEta->push_back(tmpEta);
+	t_fatJetSubJetPhi->push_back(tmpPhi);
+	t_fatJetSubJetE  ->push_back(tmpE  );
+      }
+    }
+  }
+
+
+//..J
+
+
+// **************************** Code for Type Tagger *********************************************************//
+
+
+   loadEventInfo(iEvent, iSetup);
+
+   loadRecoJets(iEvent);
+   //   if( !isPatJet ){ std::cout<<"Not a pat::jet input! Need it for bTag information..."<<std::endl; return false; }
+
+   double evtWeight = 1.0;
+   if( evtWeight_.isValid() ) evtWeight = (*evtWeight_);
+
+   cntPassnJetsCut += evtWeight;
+
+
+// The index has to be the same between jets & btags!
+   vector<TLorentzVector> oriJetsVec; vector<double> recoJetsBtagCSVS;
+   iNJets = pickJetsForCombining(oriJetsVec, recoJetsBtagCSVS);
+
+
+   bool pass = type3TopTaggerPtr->processEvent(oriJetsVec, recoJetsBtagCSVS, lvMET);
+
+   bestTopJetMass = type3TopTaggerPtr->bestTopJetMass;
+   remainPassCSVS = type3TopTaggerPtr->remainPassCSVS ;
+   mTbestTopJet = type3TopTaggerPtr->mTbestTopJet;
+   mTbJet = type3TopTaggerPtr->mTbJet;
+   MT2 = type3TopTaggerPtr->MT2;
+   mTbestWJet  = type3TopTaggerPtr->mTbestWJet;
+   mTbestbJet = type3TopTaggerPtr->mTbestbJet;
+
+
+
+   /*   if( type3TopTaggerPtr->bestTopJetMass > 80 && type3TopTaggerPtr->bestTopJetMass < 270 )
+     cout<<type3TopTaggerPtr->bestTopJetMass<<endl;
+   else
+     return;
+   */
+
+
+
+   if( type3TopTaggerPtr->isTopEvent ) cntTaggedTopEvents += evtWeight;
+   /*
+// Must have a fat top jet
+   if( !taggingMode_ && type3TopTaggerPtr->bestTopJetIdx == -1 ) return false;
+
+// Some mass cuts on the fat top jet
+   if( type3TopTaggerPtr->bestTopJetMass > lowTopCut_ && type3TopTaggerPtr->bestTopJetMass < highTopCut_) cntTaggedTopEventsWithinMassCuts += evtWeight;
+   if( !taggingMode_ && !(type3TopTaggerPtr->bestTopJetMass > lowTopCut_ && type3TopTaggerPtr->bestTopJetMass < highTopCut_) ) return false;
+
+   if( type3TopTaggerPtr->remainPassCSVS ) cntTaggedAllCutsPlusCSVS += evtWeight;
+   if( type3TopTaggerPtr->bestPassCSVS ) cntTaggedbestFatJetPlusCSVS += evtWeight;
+// Must have a jet b-tagged!
+   if( !taggingMode_ && !type3TopTaggerPtr->remainPassCSVS ) return false;
+
+   if( !taggingMode_ && type3TopTaggerPtr->pickedRemainingCombfatJetIdx == -1 && oriJetsVec.size()>=6 ) return false; 
+
+   if( type3TopTaggerPtr->mTbestTopJet > mTtcut_ ) cntPassingMTbestTopJetCut += evtWeight;
+   if( (type3TopTaggerPtr->mTbJet + 0.5*type3TopTaggerPtr->mTbestTopJet) > mTbcut_ ) cntPassingMTclosebJetCut += evtWeight;
+         
+   if( type3TopTaggerPtr->MT2 > MT2cut_ ) cntPassingMT2Cut += evtWeight;
+
+   if( (type3TopTaggerPtr->mTbestbJet + type3TopTaggerPtr->mTbestWJet) > mTWcut_ ) cntPassingMTbestWJetCut += evtWeight;
+
+   if( type3TopTaggerPtr->MT2 > MT2cut_ && (type3TopTaggerPtr->mTbJet + 0.5*type3TopTaggerPtr->mTbestTopJet) > mTbcut_ ){
+      cntPassingMT2andMTCut += evtWeight;
+   }
+
+   if( !taggingMode_ && doMTMT2cuts_ && !(type3TopTaggerPtr->MT2 > MT2cut_ && (type3TopTaggerPtr->mTbJet + 0.5*type3TopTaggerPtr->mTbestTopJet) > mTbcut_) ) return false;
+
+   return true;
+   */
+
+
+
+  tree->Fill();
+
+  }
+
+// ------------ method called once each job just before starting event loop  ------------
+void DiSTopStudyTree::beginJob() {
+
+  BookHistograms();
+
+  puWeights_.clear();
+  
+  /* DCH
+    //REMOVE THIS:
+    //Saving TrueNPV from MC block.  Can then use this reweighting scheme on the fly:
+  if(doPUReWeight) {
+
+    TFile* puDataFile = new TFile("/uscms_data/d3/dhare/CMSSW_5_3_5/src/DiSTopStudy/DataPileupHistogram_RA2Summer12_190456-208686_ABCD.root");
+    TH1D* data_npu_estimated = (TH1D*) puDataFile->Get("pileup");
+    
+    // Distribution used for Summer2012 MC.
+    Double_t Summer2012[60] = {
+      2.344E-05,
+      2.344E-05,
+      2.344E-05,
+      2.344E-05,
+      4.687E-04,
+      4.687E-04,
+      7.032E-04,
+      9.414E-04,
+      1.234E-03,
+      1.603E-03,
+      2.464E-03,
+      3.250E-03,
+      5.021E-03,
+      6.644E-03,
+      8.502E-03,
+      1.121E-02,
+      1.518E-02,
+      2.033E-02,
+      2.608E-02,
+      3.171E-02,
+      3.667E-02,
+      4.060E-02,
+      4.338E-02,
+      4.520E-02,
+      4.641E-02,
+      4.735E-02,
+      4.816E-02,
+      4.881E-02,
+      4.917E-02,
+      4.909E-02,
+      4.842E-02,
+      4.707E-02,
+      4.501E-02,
+      4.228E-02,
+      3.896E-02,
+      3.521E-02,
+      3.118E-02,
+      2.702E-02,
+      2.287E-02,
+      1.885E-02,
+      1.508E-02,
+      1.166E-02,
+      8.673E-03,
+      6.190E-03,
+      4.222E-03,
+      2.746E-03,
+      1.698E-03,
+      9.971E-04,
+      5.549E-04,
+      2.924E-04,
+      1.457E-04,
+      6.864E-05,
+      3.054E-05,
+      1.282E-05,
+      5.081E-06,
+      1.898E-06,
+      6.688E-07,
+      2.221E-07,
+      6.947E-08,
+      2.047E-08
+    };
+    
+    puWeights_.resize(60);
+    double s = 0.0;
+    for (int npu = 0; npu < 60; ++npu) {
+      double npu_estimated = data_npu_estimated->GetBinContent(data_npu_estimated->GetXaxis()->FindBin(npu));
+      puWeights_[npu] = npu_estimated/ Summer2012[npu];
+      s += npu_estimated;
+     
+    }
+   
+    //normalized weights such that the total sum of weights over whole sample is 1.0
+    for(int npu = 0; npu < 60; ++npu) {
+      puWeights_[npu] /= s;
+    } 
+    
+  }
+  */
+  
+}
+
+// ------------ method called once each job just after ending the event loop  ------------
+void DiSTopStudyTree::endJob() {
+
+}
+
+void DiSTopStudyTree::BookHistograms() {
+
+  // book tree here
+  tree = fs->make<TTree>("SAT", "tree");
+  tree->SetAutoSave(10000);
+
+  tree->Branch("t_EvtRun",    &t_EvtRun,   "t_EvtRun/i");
+  tree->Branch("t_EvtLS",     &t_EvtLS,    "t_EvtLS/i");
+  tree->Branch("t_EvtEvent",  &t_EvtEvent, "t_EvtEvent/i");
+  tree->Branch("t_NVertices", &t_NVertices,"t_NVertices/I");
+  tree->Branch("t_PUWeight",  &t_PUWeight, "t_PUWeight/D");
+  tree->Branch("t_TrueNPV",   &t_TrueNPV,  "t_TrueNPV/D");
+  tree->Branch("t_PFMetPx",   &t_PFMetPx,  "t_PFMetPx/D");
+  tree->Branch("t_PFMetPy",   &t_PFMetPy,  "t_PFMetPy/D");
+  tree->Branch("t_PFMetE",   &t_PFMetE,  "t_PFMetE/D");
+  tree->Branch("t_PFMetPhi",   &t_PFMetPhi,  "t_PFMetPhi/D");
+  tree->Branch("t_PFMetSignificance",   &t_PFMetSignificance,  "t_PFMetSignificance/D");
+
+  t_PFJetPt  = new std::vector<double>();
+  t_PFJetEta = new std::vector<double>();    
+  t_PFJetPhi = new std::vector<double>();
+  t_PFJetE   = new std::vector<double>();
+  t_PFJetBTag= new std::vector<double>();
+  tree->Branch("NJets",   &iNJets,  "NJets/I");
+  tree->Branch("t_PFJetPt",  "vector<double>", &t_PFJetPt );
+  tree->Branch("t_PFJetEta", "vector<double>", &t_PFJetEta);
+  tree->Branch("t_PFJetPhi", "vector<double>", &t_PFJetPhi);
+  tree->Branch("t_PFJetE",   "vector<double>", &t_PFJetE);
+  tree->Branch("t_PFJetBTag","vector<double>", &t_PFJetBTag);
+  tree->Branch("t_NJetsPt30Eta2p5", &t_NJetsPt30Eta2p5, "t_NJetsPt30Eta2p5/I");
+  tree->Branch("t_NJetsPt30Eta5p0", &t_NJetsPt30Eta5p0, "t_NJetsPt30Eta5p0/I"); 
+  tree->Branch("t_NJetsPt50Eta2p5", &t_NJetsPt50Eta2p5, "t_NJetsPt50Eta2p5/I"); 
+  tree->Branch("t_NJetsPt50Eta5p0", &t_NJetsPt50Eta5p0, "t_NJetsPt50Eta5p0/I");
+
+
+
+
+  tree->Branch("t_PFht",      &t_PFht,      "t_PFht/D");
+  tree->Branch("t_PFmht",     &t_PFmht,     "t_PFmht/D");
+  tree->Branch("t_PFmphi",     &t_PFmphi,     "t_PFmphi/D");
+
+  tree->Branch("t_NVetoMuon", &t_NVetoMuon,"t_NVetoMuon/I");
+  tree->Branch("t_NVetoEle",  &t_NVetoEle, "t_NVetoEle/I");
+
+  if(isDimuonSample_){
+    t_PFMuonPt  = new std::vector<double>();
+    t_PFMuonEta = new std::vector<double>();    
+    t_PFMuonPhi = new std::vector<double>();
+    t_PFMuonE   = new std::vector<double>();
+    t_PFMuonCh  = new std::vector<double>();
+    tree->Branch("t_PFMuonPt",  "vector<double>", &t_PFMuonPt );
+    tree->Branch("t_PFMuonEta", "vector<double>", &t_PFMuonEta);
+    tree->Branch("t_PFMuonPhi", "vector<double>", &t_PFMuonPhi);
+    tree->Branch("t_PFMuonE",   "vector<double>", &t_PFMuonE  );
+    tree->Branch("t_PFMuonCh",  "vector<double>", &t_PFMuonCh);
+      
+    t_PFMuonChiSq                = new std::vector<double>(); 
+    t_PFMuonValidMuonHits        = new std::vector<double>(); 
+    t_PFMuonMatchedStations      = new std::vector<double>(); 
+    t_PFMuonValidPixelHits       = new std::vector<double>(); 
+    t_PFMuonTrackerLayerMeasured = new std::vector<double>();
+    t_PFMuonCharHadEt            = new std::vector<double>(); 
+    t_PFMuonNeutHadEt            = new std::vector<double>(); 
+    t_PFMuonPhotEt               = new std::vector<double>(); 
+    t_PFMuonSumPUPt              = new std::vector<double>(); 
+    t_PFMuonRelIso               = new std::vector<double>();
+    t_PFMuonCharHadEt03          = new std::vector<double>();; 
+    t_PFMuonNeutHadEt03          = new std::vector<double>();; 
+    t_PFMuonPhotEt03             = new std::vector<double>();; 
+    t_PFMuonSumPUPt03            = new std::vector<double>();; 
+    t_PFMuonRelIso03             = new std::vector<double>();;
+    tree->Branch("t_PFMuonChiSq"                ,"vector<double>", &t_PFMuonChiSq                ); 
+    tree->Branch("t_PFMuonValidMuonHits"        ,"vector<double>", &t_PFMuonValidMuonHits        ); 
+    tree->Branch("t_PFMuonMatchedStations"      ,"vector<double>", &t_PFMuonMatchedStations      ); 
+    tree->Branch("t_PFMuonValidPixelHits"       ,"vector<double>", &t_PFMuonValidPixelHits       ); 
+    tree->Branch("t_PFMuonTrackerLayerMeasured" ,"vector<double>", &t_PFMuonTrackerLayerMeasured );
+    tree->Branch("t_PFMuonCharHadEt"            ,"vector<double>", &t_PFMuonCharHadEt            ); 
+    tree->Branch("t_PFMuonNeutHadEt"            ,"vector<double>", &t_PFMuonNeutHadEt            ); 
+    tree->Branch("t_PFMuonPhotEt"               ,"vector<double>", &t_PFMuonPhotEt               ); 
+    tree->Branch("t_PFMuonSumPUPt"              ,"vector<double>", &t_PFMuonSumPUPt              ); 
+    tree->Branch("t_PFMuonRelIso"               ,"vector<double>", &t_PFMuonRelIso               );
+    tree->Branch("t_PFMuonCharHadEt03"          ,"vector<double>", &t_PFMuonCharHadEt03          ); 
+    tree->Branch("t_PFMuonNeutHadEt03"          ,"vector<double>", &t_PFMuonNeutHadEt03          ); 
+    tree->Branch("t_PFMuonPhotEt03"             ,"vector<double>", &t_PFMuonPhotEt03             ); 
+    tree->Branch("t_PFMuonSumPUPt03"            ,"vector<double>", &t_PFMuonSumPUPt03            ); 
+    tree->Branch("t_PFMuonRelIso03"             ,"vector<double>", &t_PFMuonRelIso03             );
+    
+    t_PFMuonDirIso01 = new std::vector<double>();
+    t_PFMuonDirIso02 = new std::vector<double>(); 
+    t_PFMuonDirIso03 = new std::vector<double>(); 
+    t_PFMuonDirIso04 = new std::vector<double>(); 
+    t_PFMuonDirIso05 = new std::vector<double>();
+    tree->Branch("t_PFMuonDirIso01", "vector<double>", &t_PFMuonDirIso01 );
+    tree->Branch("t_PFMuonDirIso02", "vector<double>", &t_PFMuonDirIso02 ); 
+    tree->Branch("t_PFMuonDirIso03", "vector<double>", &t_PFMuonDirIso03 ); 
+    tree->Branch("t_PFMuonDirIso04", "vector<double>", &t_PFMuonDirIso04 ); 
+    tree->Branch("t_PFMuonDirIso05", "vector<double>", &t_PFMuonDirIso05 );
+    
+    
+    t_PFMuonID       = new std::vector<bool>();
+    t_PFMuonVtxAss   = new std::vector<bool>();
+    t_PFMuonIsolated = new std::vector<bool>();
+    t_PFMuonIDVtxIso = new std::vector<bool>();
+    
+    tree->Branch("t_PFMuonID"      , "vector<bool>",  &t_PFMuonID      );
+    tree->Branch("t_PFMuonVtxAss"  , "vector<bool>",  &t_PFMuonVtxAss  );
+    tree->Branch("t_PFMuonIsolated", "vector<bool>",  &t_PFMuonIsolated);
+    tree->Branch("t_PFMuonIDVtxIso", "vector<bool>",  &t_PFMuonIDVtxIso);
+    
+    t_PFMuonIsWdau   = new std::vector<bool>();
+    t_PFMuonIsBdau   = new std::vector<bool>();
+    t_PFMuonGenMuPt  = new std::vector<double>();
+    t_PFMuonGenMuEta = new std::vector<double>();
+    t_PFMuonGenMuPhi = new std::vector<double>();
+    tree->Branch("t_PFMuonIsWdau",   "vector<bool>",   &t_PFMuonIsWdau  );
+    tree->Branch("t_PFMuonIsBdau" ,  "vector<bool>",   &t_PFMuonIsBdau  );
+    tree->Branch("t_PFMuonGenMuPt",  "vector<double>", &t_PFMuonGenMuPt );
+    tree->Branch("t_PFMuonGenMuEta", "vector<double>", &t_PFMuonGenMuEta);
+    tree->Branch("t_PFMuonGenMuPhi", "vector<double>", &t_PFMuonGenMuPhi);
+    
+  
+    tree->Branch("t_DiMuonZPt", &t_PFMuonZPt, "t_DiMuonZPt/D");
+    tree->Branch("t_DiMuonZEta", &t_PFMuonZEta, "t_DiMuonZEta/D");
+    tree->Branch("t_DiMuonZPhi", &t_PFMuonZPhi, "t_DiMuonZPhi/D");
+    tree->Branch("t_DiMuonZE", &t_PFMuonZE, "t_DiMuonZE/D");
+    tree->Branch("t_DiMuonZMass", &t_PFMuonZMass, "t_DiMuonZMass/D");
+  }
+
+  t_QCDReweight = new std::vector<double>();
+  tree->Branch("t_QCDReweight", "vector<double>", &t_QCDReweight);
+
+  t_PFElecPt  = new std::vector<double>();
+  t_PFElecEta = new std::vector<double>();    
+  t_PFElecPhi = new std::vector<double>();
+  t_PFElecE   = new std::vector<double>();
+  t_PFElecCh  = new std::vector<double>();
+  tree->Branch("t_PFElecPt",  "vector<double>", &t_PFElecPt );
+  tree->Branch("t_PFElecEta", "vector<double>", &t_PFElecEta);
+  tree->Branch("t_PFElecPhi", "vector<double>", &t_PFElecPhi);
+  tree->Branch("t_PFElecE",   "vector<double>", &t_PFElecE  );
+  tree->Branch("t_PFElecCh",  "vector<double>", &t_PFElecCh);
+
+  t_PFEleIsEB        = new std::vector<bool>();
+  t_PFEleIsEE        = new std::vector<bool>();
+  tree->Branch("t_PFEleIsEB", "vector<bool>", &t_PFEleIsEB);
+  tree->Branch("t_PFEleIsEE", "vector<bool>", &t_PFEleIsEE);
+
+  t_PFEleDEtaIn      = new std::vector<double>();
+  t_PFEleDPhiIn      = new std::vector<double>();
+  t_PFEleSigIEtaIEta = new std::vector<double>();
+  t_PFEleHOE         = new std::vector<double>();
+  t_PFEleD0Vtx       = new std::vector<double>();
+  t_PFEleZVtx        = new std::vector<double>();
+  t_PFEleIsoCH       = new std::vector<double>();
+  t_PFEleIsoEM       = new std::vector<double>();
+  t_PFEleIsoNH       = new std::vector<double>();
+  t_PFEleIsoRho      = new std::vector<double>();
+  t_PFEleIsoEffA     = new std::vector<double>();
+  t_PFEleRelIso      = new std::vector<double>();
+  tree->Branch("t_PFEleDEtaIn"      , "vector<double>", &t_PFEleDEtaIn      );
+  tree->Branch("t_PFEleDPhiIn"      , "vector<double>", &t_PFEleDPhiIn      );
+  tree->Branch("t_PFEleSigIEtaIEta" , "vector<double>", &t_PFEleSigIEtaIEta );
+  tree->Branch("t_PFEleHOE"         , "vector<double>", &t_PFEleHOE         );
+  tree->Branch("t_PFEleD0Vtx"       , "vector<double>", &t_PFEleD0Vtx       );
+  tree->Branch("t_PFEleZVtx"        , "vector<double>", &t_PFEleZVtx        );
+  tree->Branch("t_PFEleIsoCH"       , "vector<double>", &t_PFEleIsoCH       );
+  tree->Branch("t_PFEleIsoEM"       , "vector<double>", &t_PFEleIsoEM       );
+  tree->Branch("t_PFEleIsoNH"       , "vector<double>", &t_PFEleIsoNH       );
+  tree->Branch("t_PFEleIsoRho"      , "vector<double>", &t_PFEleIsoRho      );
+  tree->Branch("t_PFEleIsoEffA"     , "vector<double>", &t_PFEleIsoEffA     );
+  tree->Branch("t_PFEleRelIso"      , "vector<double>", &t_PFEleRelIso      );
+
+  t_PFEleID          = new std::vector<bool>();
+  t_PFEleIsolated    = new std::vector<bool>();
+  t_PFEleIDIso       = new std::vector<bool>();
+  tree->Branch("t_PFEleID",       "vector<bool>", &t_PFEleID      );
+  tree->Branch("t_PFEleIsolated", "vector<bool>", &t_PFEleIsolated);
+  tree->Branch("t_PFEleIDIso",    "vector<bool>", &t_PFEleIDIso   );
+
+  t_PFEleDirIso01 = new std::vector<double>();
+  t_PFEleDirIso02 = new std::vector<double>(); 
+  t_PFEleDirIso03 = new std::vector<double>(); 
+  t_PFEleDirIso04 = new std::vector<double>(); 
+  t_PFEleDirIso05 = new std::vector<double>();
+  tree->Branch("t_PFEleDirIso01", "vector<double>", &t_PFEleDirIso01 );
+  tree->Branch("t_PFEleDirIso02", "vector<double>", &t_PFEleDirIso02 ); 
+  tree->Branch("t_PFEleDirIso03", "vector<double>", &t_PFEleDirIso03 ); 
+  tree->Branch("t_PFEleDirIso04", "vector<double>", &t_PFEleDirIso04 ); 
+  tree->Branch("t_PFEleDirIso05", "vector<double>", &t_PFEleDirIso05 );
+
+  t_PFEleIsWdau   = new std::vector<bool>();
+  t_PFEleIsBdau   = new std::vector<bool>();
+  t_PFEleGenElePt  = new std::vector<double>();
+  t_PFEleGenEleEta = new std::vector<double>();
+  t_PFEleGenElePhi = new std::vector<double>();
+  tree->Branch("t_PFEleIsWdau",   "vector<bool>",   &t_PFEleIsWdau  );
+  tree->Branch("t_PFEleIsBdau" ,  "vector<bool>",   &t_PFEleIsBdau  );
+  tree->Branch("t_PFEleGenElePt",  "vector<double>", &t_PFEleGenElePt );
+  tree->Branch("t_PFEleGenEleEta", "vector<double>", &t_PFEleGenEleEta);
+  tree->Branch("t_PFEleGenElePhi", "vector<double>", &t_PFEleGenElePhi);
+
+
+  if(isMC_){
+    t_genPartPdgId     = new std::vector<int>();
+    t_genPartStatus    = new std::vector<int>();
+    t_genPartPt        = new std::vector<double>();
+    t_genPartEta       = new std::vector<double>();
+    t_genPartPhi       = new std::vector<double>();
+    t_genPartE         = new std::vector<double>();
+    t_genPartDecayMode = new std::vector<int>();
+    tree->Branch("t_genPartPdgId",     "vector<int>",    &t_genPartPdgId    );
+    tree->Branch("t_genPartStatus",    "vector<int>",    &t_genPartStatus   );
+    tree->Branch("t_genPartPt",        "vector<double>", &t_genPartPt       );
+    tree->Branch("t_genPartEta",       "vector<double>", &t_genPartEta      );
+    tree->Branch("t_genPartPhi",       "vector<double>", &t_genPartPhi      );
+    tree->Branch("t_genPartE",         "vector<double>", &t_genPartE        );
+    tree->Branch("t_genPartDecayMode", "vector<int>",              &t_genPartDecayMode);
+
+
+    tree->Branch("t_Genht",      &t_Genht,      "t_Genht/D");
+    tree->Branch("t_Genmht",     &t_Genmht,     "t_Genmht/D");
+  }
+
+  //J..
+  tree->Branch("t_fatJet1_m123", &t_fatJet1_m123, "fatJet1_m123/D");
+  tree->Branch("t_fatJet1_pt123", &t_fatJet1_pt123, "fatJet1_pt123/D");
+  tree->Branch("t_fatJet1_eta123", &t_fatJet1_eta123, "fatJet1_eta123/D");
+  tree->Branch("t_fatJet1_phi123", &t_fatJet1_phi123, "fatJet1_phi123/D");
+  tree->Branch("t_fatJet1_m12", &t_fatJet1_m12, "fatJet1_m12/D");
+  tree->Branch("t_fatJet1_m13", &t_fatJet1_m13, "fatJet1_m13/D");
+  tree->Branch("t_fatJet1_m23", &t_fatJet1_m23, "fatJet1_m23/D");
+
+  tree->Branch("t_fatJet2_m123", &t_fatJet2_m123, "fatJet2_m123/D");
+  tree->Branch("t_fatJet2_pt123", &t_fatJet2_pt123, "fatJet2_pt123/D");
+  tree->Branch("t_fatJet2_eta123", &t_fatJet2_eta123, "fatJet2_eta123/D");
+  tree->Branch("t_fatJet2_phi123", &t_fatJet2_phi123, "fatJet2_phi123/D");
+  tree->Branch("t_fatJet2_m12", &t_fatJet2_m12, "fatJet2_m12/D");
+  tree->Branch("t_fatJet2_m13", &t_fatJet2_m13, "fatJet2_m13/D");
+  tree->Branch("t_fatJet2_m23", &t_fatJet2_m23, "fatJet2_m23/D");
+
+  tree->Branch("t_nFatJet", &t_nFatJet, "t_nFatJet/i");
+
+  tree->Branch("t_fatJet1_cond1",  &t_fatJet1_cond1,   "t_fatJet1_cond1/i");
+  tree->Branch("t_fatJet1_cond2",  &t_fatJet1_cond2,   "t_fatJet1_cond2/i");
+  tree->Branch("t_fatJet1_cond3",  &t_fatJet1_cond3,   "t_fatJet1_cond3/i");
+
+  tree->Branch("t_fatJet2_cond1",  &t_fatJet2_cond1,   "t_fatJet2_cond1/i");
+  tree->Branch("t_fatJet2_cond2",  &t_fatJet2_cond2,   "t_fatJet2_cond2/i");
+  tree->Branch("t_fatJet2_cond3",  &t_fatJet2_cond3,   "t_fatJet2_cond3/i");
+
+  t_fatJetSubJetPt        = new std::vector< std::vector<double> >();
+  t_fatJetSubJetEta       = new std::vector< std::vector<double> >();
+  t_fatJetSubJetPhi       = new std::vector< std::vector<double> >();
+  t_fatJetSubJetE         = new std::vector< std::vector<double> >();
+  tree->Branch("t_fatJetSubJetPt",        "vector< vector<double> >", &t_fatJetSubJetPt       );
+  tree->Branch("t_fatJetSubJetEta",       "vector< vector<double> >", &t_fatJetSubJetEta      );
+  tree->Branch("t_fatJetSubJetPhi",       "vector< vector<double> >", &t_fatJetSubJetPhi      );
+  tree->Branch("t_fatJetSubJetE",         "vector< vector<double> >", &t_fatJetSubJetE        );
+  //..J
+  
+  
+  //Information for Dan's tagger
+  tree->Branch("t_DTWMass1", &t_DTWMass1, "t_DTWMass1/D");
+  tree->Branch("t_DTWMass2", &t_DTWMass2, "t_DTWMass2/D");
+  tree->Branch("t_DTMassChiSqr1", &t_DTWMassChiSqr1, "t_DTMassChiSqr1/D");
+  tree->Branch("t_DTMassChiSqr2", &t_DTWMassChiSqr2, "t_DTMassChiSqr2/D");
+  tree->Branch("t_DTTopMass1", &t_DTTopMass1, "t_DTTopMass1/D");
+  tree->Branch("t_DTTopMass2", &t_DTTopMass2, "t_DTTopMass2/D");
+  tree->Branch("t_DTTotalSystemMass", &t_DTTotalSystemMass, "t_DTTotalSystemMass/D");
+  tree->Branch("t_DTTopPt1", &t_DTTopPt1, "t_DTTopPt1/D");
+  tree->Branch("t_DTTopPt2", &t_DTTopPt2, "t_DTTopPt2/D");
+  tree->Branch("t_DTTotalSystemPt", &t_DTTotalSystemPt, "t_DTTotalSystemPt/D");
+  tree->Branch("t_DTTopEta1", &t_DTTopEta1, "t_DTTopEta1/D");
+  tree->Branch("t_DTTopEta2", &t_DTTopEta2, "t_DTTopEta2/D");
+  tree->Branch("t_DTTotalSystemEta", &t_DTTotalSystemEta, "t_DTTotalSystemEta/D");  
+  tree->Branch("t_DTTopPhi1", &t_DTTopPhi1, "t_DTTopPhi1/D");
+  tree->Branch("t_DTTopPhi2", &t_DTTopPhi2, "t_DTTopPhi2/D");
+  tree->Branch("t_DTTotalSystemPhi", &t_DTTotalSystemPhi, "t_DTTotalSystemPhi/D");
+  tree->Branch("t_DTindexB1", &indexB1, "t_DTindexB1/I");
+  tree->Branch("t_DTindexB2", &indexB2, "t_DTindexB2/I");
+  tree->Branch("t_DTindexW11", &indexW11, "t_DTindexW11/I");
+  tree->Branch("t_DTindexW12", &indexW12, "t_DTindexW12/I");
+  tree->Branch("t_DTindexW21", &indexW21, "t_DTindexW21/I");
+  tree->Branch("t_DTindexW22", &indexW22, "t_DTindexW22/I");
+  tree->Branch("t_DTdPhi1", &t_DTdPhi1, "t_DTdPhi1/D");
+  tree->Branch("t_DTdPhi2", &t_DTdPhi2, "t_DTdPhi2/D");
+  tree->Branch("t_DTTopMu1", &t_DTTopMu1, "t_DTTopMu1/D");
+  tree->Branch("t_DTTopMu2", &t_DTTopMu2, "t_DTTopMu2/D");
+
+  //  tree->Branch("LHEEventProduct", "LHEEventProduct", &product );
+
+  bestTopJetMass = -1;
+  remainPassCSVS =-10;
+  mTbestTopJet = -1;
+  mTbJet = -1;
+  MT2 =-1;
+  mTbestWJet = -1;
+  mTbestbJet = -1;
+
+  
+  
+  tree->Branch("t_bestTopJetMass", &bestTopJetMass, "t_bestTopJetMass/D");
+  tree->Branch("t_remainPassCSVS", &remainPassCSVS, "t_remainPassCSVS/B");
+  tree->Branch("t_mTbestTopJet", &mTbestTopJet, "t_mTbestTopJet/D");
+  tree->Branch("t_mTbJet", &mTbJet, "t_mTbJet/D");
+  tree->Branch("t_MT2", &MT2, "t_MT2/D");
+  tree->Branch("t_mTbestWJet", &mTbestWJet, "t_mTbestWJet/D");
+  tree->Branch("t_mTbestbJet", &mTbestbJet, "t_mTbestbJet/D");
+
+}
+
+void DiSTopStudyTree::clearTreeVectors() {
+
+  t_PFJetPt  ->clear();
+  t_PFJetEta ->clear();    
+  t_PFJetPhi ->clear();
+  t_PFJetE   ->clear();
+  t_PFJetBTag->clear();
+
+  t_QCDReweight->clear();
+
+
+  if(isDimuonSample_){
+    t_PFMuonPt  ->clear();
+    t_PFMuonEta ->clear();    
+    t_PFMuonPhi ->clear();
+    t_PFMuonE   ->clear();
+    t_PFMuonCh  ->clear();
+    t_PFMuonChiSq                ->clear(); 
+    t_PFMuonValidMuonHits        ->clear(); 
+    t_PFMuonMatchedStations      ->clear(); 
+    t_PFMuonValidPixelHits       ->clear(); 
+    t_PFMuonTrackerLayerMeasured ->clear();
+    t_PFMuonCharHadEt            ->clear(); 
+    t_PFMuonNeutHadEt            ->clear(); 
+    t_PFMuonPhotEt               ->clear(); 
+    t_PFMuonSumPUPt              ->clear(); 
+    t_PFMuonRelIso               ->clear();
+    t_PFMuonCharHadEt03          ->clear(); 
+    t_PFMuonNeutHadEt03          ->clear(); 
+    t_PFMuonPhotEt03             ->clear(); 
+    t_PFMuonSumPUPt03            ->clear(); 
+    t_PFMuonRelIso03             ->clear();
+    t_PFMuonID       ->clear();
+    t_PFMuonVtxAss   ->clear();
+    t_PFMuonIsolated ->clear();
+    t_PFMuonIDVtxIso ->clear();
+    t_PFMuonIsWdau   ->clear();
+    t_PFMuonIsBdau   ->clear();
+    t_PFMuonGenMuPt  ->clear();
+    t_PFMuonGenMuEta ->clear();
+    t_PFMuonGenMuPhi ->clear();
+    
+    t_PFMuonDirIso01->clear();
+    t_PFMuonDirIso02->clear();
+    t_PFMuonDirIso03->clear();
+    t_PFMuonDirIso04->clear();
+    t_PFMuonDirIso05->clear();
+
+    t_PFMuonZPt=-1; 
+    t_PFMuonZEta=999; 
+    t_PFMuonZPhi=999; 
+    t_PFMuonZE=-1;
+    t_PFMuonZMass=-1;
+  
+  }
+
+  t_PFElecPt  ->clear();
+  t_PFElecEta ->clear();    
+  t_PFElecPhi ->clear();
+  t_PFElecE   ->clear();
+  t_PFElecCh  ->clear();
+
+  t_PFEleIsEB        ->clear();
+  t_PFEleIsEE        ->clear();
+  t_PFEleDEtaIn      ->clear();
+  t_PFEleDPhiIn      ->clear();
+  t_PFEleSigIEtaIEta ->clear();
+  t_PFEleHOE         ->clear();
+  t_PFEleD0Vtx       ->clear();
+  t_PFEleZVtx        ->clear();
+  t_PFEleIsoCH       ->clear();
+  t_PFEleIsoEM       ->clear();
+  t_PFEleIsoNH       ->clear();
+  t_PFEleIsoRho      ->clear();
+  t_PFEleIsoEffA     ->clear();
+  t_PFEleRelIso      ->clear();
+  t_PFEleID          ->clear();
+  t_PFEleIsolated    ->clear();
+  t_PFEleIDIso       ->clear();
+
+  t_PFEleDirIso01->clear();
+  t_PFEleDirIso02->clear();
+  t_PFEleDirIso03->clear();
+  t_PFEleDirIso04->clear();
+  t_PFEleDirIso05->clear();
+
+  t_PFEleIsWdau   ->clear();
+  t_PFEleIsBdau   ->clear();
+  t_PFEleGenElePt  ->clear();
+  t_PFEleGenEleEta ->clear();
+  t_PFEleGenElePhi ->clear();
+
+  if(isMC_){
+    t_genPartPdgId     ->clear();
+    t_genPartStatus    ->clear();
+    t_genPartPt        ->clear();
+    t_genPartEta       ->clear();
+    t_genPartPhi       ->clear();
+    t_genPartE         ->clear();
+    t_genPartDecayMode ->clear();
+    t_Genht = -1 ;
+    t_Genmht = -1;
+  }
+
+  
+  //J..
+  t_fatJetSubJetPt ->clear();
+  t_fatJetSubJetEta->clear();
+  t_fatJetSubJetPhi->clear();
+  t_fatJetSubJetE  ->clear();
+  //..J
+
+  t_DTWMass1 = -1.0; 
+  t_DTWMass2 = -1.0;
+  t_DTWMassChiSqr1 = -1.0; 
+  t_DTWMassChiSqr2 = -1.0;
+  t_DTTopMass1 = -1.0;
+  t_DTTopMass2 = -1.0;
+  t_DTTotalSystemMass = -1.0;
+  t_DTTopPt1 = -1.0;
+  t_DTTopPt2 = -1.0;
+  t_DTTotalSystemPt = -1.0;
+  t_DTTopEta1 = -1000.0;
+  t_DTTopEta2 = -1000.0;
+  t_DTTotalSystemEta = -1000.0;
+  t_DTTopPhi1 = -1.0;
+  t_DTTopPhi2 = -1.0;
+  t_DTTotalSystemPhi = -1.0;
+  indexB1 = -1;
+  indexB2 = -1;  
+  indexW11 = -1; 
+  indexW12 = -1;
+  indexW21  = -1; 
+  indexW22 = -1;
+  t_DTdPhi1 = -20;
+  t_DTdPhi2 = -20;
+  t_DTTopMu1  = -1;
+  t_DTTopMu2 = -1;
+  t_PFht = -1 ;
+  t_PFmht = -1;
+
+  bestTopJetMass = -1;
+  remainPassCSVS =-10;
+  mTbestTopJet = -1;
+  mTbJet = -1;
+  MT2 =-1;
+  mTbestWJet = -1;
+  mTbestbJet = -1;
+}
+
+
+
+
+int DiSTopStudyTree::pickJetsForCombining(std::vector<TLorentzVector>& oriJetsVec, std::vector<double> &recoJetsBtagCSVS){
+
+   oriJetsVec.clear(); recoJetsBtagCSVS.clear();
+
+//   reco::Vertex::Point vtxpos = (vertices->size() > 0 ? (*vertices)[0].position() : reco::Vertex::Point());
+
+
+   int cntNJets =0;
+
+   int cntBJets =0;
+   double topCSV = 0;
+
+   for(size ij=0; ij<nJets; ij++){
+      const reco::Jet & jet = (*jets)[ij];
+      if( jet.pt() < 30.0 )
+	continue;
+      if( !pfJetCutForJetCombining_(jet) ) continue;
+      if(isDimuonSample_&&kFoundTwoMuons){
+	if(deltaR(jet.eta(), jet.phi(),lvMuon1.Eta(),lvMuon1.Phi())<0.3)
+	  continue;
+	if(deltaR(jet.eta(), jet.phi(),lvMuon2.Eta(),lvMuon2.Phi())<0.3)
+	  continue;
+
+      }
+      TLorentzVector jetLVec;
+      jetLVec.SetPtEtaPhiE(jet.pt(), jet.eta(), jet.phi(), jet.energy());
+      oriJetsVec.push_back(jetLVec);
+      const pat::Jet & patjet = (*patjets)[ij];
+      double btag = patjet.bDiscriminator(bTagKeyString_.c_str());
+      recoJetsBtagCSVS.push_back(btag);
+      //if(btag > 0.679 && jet.eta() < 2.4) cntBJets++;
+      if(btag > topCSV) topCSV = btag;
+
+      cntNJets ++;
+   }
+
+   if(topCSV >= 0 && topCSV <= 0.679) {
+   //DCH, hack to set highest csv jet as the b
+     for(int q= 0; q < cntNJets; q++ ) {
+       if(recoJetsBtagCSVS[q] == topCSV) recoJetsBtagCSVS[q] = 1;
+       else recoJetsBtagCSVS[q] = 0;
+
+     }
+   }
+
+   return cntNJets;
+}
+
+int DiSTopStudyTree::countNJets(){
+   int cntNJets =0;
+   for(size ij=0; ij<nJets; ij++){
+      const reco::Jet & jet = (*jets)[ij];
+      if( !pfJetCutForJetCounting_(jet) ) continue;
+      if( jet.pt() < 30.0 ) continue;
+      cntNJets ++;
+   }
+   return cntNJets;
+}
+
+void DiSTopStudyTree::loadRecoJets(const edm::Event& iEvent){
+   iEvent.getByLabel(jetSrc_, jets); nJets = jets->size();
+
+   isPatJet = false;
+   edm::ProductID jetProdID = jets.id();
+   const edm::Provenance & jetProv = iEvent.getProvenance(jetProdID);
+   const std::string jetclassName = jetProv.className();
+   TString jetclassNameT(jetclassName);
+   if( jetclassNameT.Contains("pat::Jet") ) isPatJet = true;
+
+   if( isPatJet ) iEvent.getByLabel(jetSrc_, patjets);
+}
+
+void DiSTopStudyTree::loadMETMHT(const edm::Event& iEvent){
+   iEvent.getByLabel(metSrc_, metHandle);
+   met = (*metHandle)[0].pt(); metphi = (*metHandle)[0].phi();
+}
+
+void DiSTopStudyTree::loadEventInfo(const edm::Event& iEvent, const edm::EventSetup& iSetup){
+// Determine if it's data
+   if( !iEvent.isRealData() ) isData = false;
+
+// Get run, event, lumi info
+   run = iEvent.id().run();
+   event = iEvent.id().event();
+   lumi = iEvent.luminosityBlock();
+
+// Get vertices
+   iEvent.getByLabel(vtxSrc_, vertices); vtxSize = vertices->size();
+
+// Get event weight
+   iEvent.getByLabel(evtWeightInput_, evtWeight_);
+}
+
+
+
+#include "FWCore/Framework/interface/MakerMacros.h"
+
+DEFINE_FWK_MODULE(DiSTopStudyTree);

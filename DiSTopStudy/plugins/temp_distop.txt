@@ -1,0 +1,517 @@
+6c6
+< /**\class DiSTopStudyTre DiSTopStudyTree.cc SusyAnalysis/DiSTopStudyTree/src/DiSTopStudyTree.cc
+---
+> /**\class DiSTopStudyTree DiSTopStudyTree.cc SusyAnalysis/DiSTopStudyTree/src/DiSTopStudyTree.cc
+119c119,120
+<   bool          isDimuonSample_;
+---
+>   bool          isDimuonSample_; 
+>   bool          isDieleSample_;
+134a136,138
+> 
+>   edm::InputTag electronSrc_;
+> 
+140d143
+<   double               t_TrueNPV;
+149,150d151
+<   vector<double> puWeights_;
+< 
+161a163
+>   double               t_PFElecZPt, t_PFElecZEta, t_PFElecZPhi, t_PFElecZE, t_PFElecZMass;
+181a184,186
+>   TLorentzVector lvElec1;
+>   TLorentzVector lvElec2;
+>   
+314a320
+>   bool kFoundTwoElectrons; 
+364a371
+>   isDieleSample_= iConfig.getParameter<bool>("isDieleSample");
+371c378
+< //J  puWeigthSrc_ = iConfig.getPararmeter<edm::InputTag>("PUWeigthSource");
+---
+> //J  puWeigthSrc_ = iConfig.getParameter<edm::InputTag>("PUWeigthSource");
+388a396,397
+> 
+> 
+438,440c447
+< 
+<   iSetup.getData( pdt_ );
+< 
+---
+>   
+473,504d479
+<   //save vertex info for PU weight:
+<   edm::Handle<std::vector<PileupSummaryInfo> > PupInfo;
+<   iEvent.getByLabel( edm::InputTag("addPileupInfo"),PupInfo);
+<   
+<   vector<PileupSummaryInfo>::const_iterator PVI;
+<   
+<   float Tnpv = -1;
+<   for(PVI = PupInfo->begin(); PVI !=PupInfo->end(); ++PVI) {
+<     
+<     int BX = PVI->getBunchCrossing();
+<     
+<     if(BX == 0) {
+<       Tnpv = PVI->getTrueNumInteractions();
+<       continue;
+<     }
+<   }
+<   t_TrueNPV = Tnpv;
+< 
+<   /* DCH not keeping the puWeights vector, just keep TrueNPV
+<   //save PU weight:
+<   if(doPUReWeight_) {
+<     if(Tnpv < static_cast<int> (puWeights_.size())) {
+<       t_PUWeight *= puWeights_[Tnpv];
+<     }
+<     else {
+<       cout << "WARNING ... number of PU vertices = " << Tnpv << " out of histogram binning." << endl;
+<       t_PUWeight = -99;
+<     }
+<   }
+<   else t_PUWeight = -99;
+<   */
+< 
+542,545c517,520
+<     /*   for( LHEEventProduct::comments_const_iterator cit=c_begin; cit!=c_end; ++cit) {
+<       std::cout << "%%%%%%%%%%%%%%%%%%% "<< *cit << std::endl;
+<     }
+<     */
+---
+>     // for( LHEEventProduct::comments_const_iterator cit=c_begin; cit!=c_end; ++cit) {
+>     //  std::cout << "%%%%%%%%%%%%%%%%%%% "<< *cit << std::endl;
+>     // }
+>     
+635a611,656
+>   if(isDieleSample_){
+>     edm::Handle<std::vector<pat::Electron> > electrons;
+>     iEvent.getByLabel(electronSrc_, electrons);
+> 
+>     kFoundTwoElectrons = false;
+>     if(electrons->size()>=2){
+>       for (std::vector<pat::Electron>::const_iterator e = electrons->begin(); e != electrons->end(); ++e) {
+>         t_PFElecPt             ->push_back(e->pt() );
+> 	  t_PFElecEta            ->push_back(e->eta());    
+> 	  t_PFElecPhi            ->push_back(e->phi());
+> 	  t_PFElecE              ->push_back(e->energy());
+> 	  t_PFElecCh             ->push_back(e->charge());
+> 
+>       }
+> 	  
+>       if((*t_PFElecCh)[0]!=(*t_PFElecCh)[1]){
+> 	
+> 	kFoundTwoElectrons = true;
+> 
+> 	//Find the first Electron
+> 	lvElec1.SetPtEtaPhiE((*t_PFElecPt)[0],(*t_PFElecEta)[0],(*t_PFElecPhi)[0],(*t_PFElecE)[0]);
+> 	
+> 	//Find the second muon
+> 	lvElec2.SetPtEtaPhiE((*t_PFElecPt)[1],(*t_PFElecEta)[1],(*t_PFElecPhi)[1],(*t_PFElecE)[1]);
+> 	
+> 	
+> 	TLorentzVector lvZ =  lvElec1 + lvElec2;
+> 	
+> 	t_PFElecZPt = lvZ.Pt();
+> 	t_PFElecZEta  = lvZ.Eta();
+> 	t_PFElecZPhi  = lvZ.Phi();
+> 	t_PFElecZE  = lvZ.E();
+> 	t_PFElecZMass  = lvZ.M();
+> 	
+> 	lvMET = lvMET +  lvElec1 + lvElec2;
+> 	
+> 	t_PFMetPx = lvMET.Px();
+> 	t_PFMetPy = lvMET.Py();
+> 	t_PFMetE = lvMET.Pt();  
+> 	t_PFMetPhi = lvMET.Phi();  
+>       }
+>        
+>     }
+>   }
+>      
+> 
+786a808,810
+> 
+>     edm::Handle<std::vector<pat::Muon> > muonstight;
+>     iEvent.getByLabel("stoppatMuonsPFIDTight", muonstight);
+787a812,814
+>     //Uncomment to check if the muons are the same
+>     //    cout<<"Muons : "<<muonstight->size()<<" : "<<(*t_PFMuonPt).size()<<endl;
+> 
+793c820
+<  
+---
+>     
+836c863
+<   // std::cout << "ht " << t_PFht << " mht " << t_PFmht << std::endl;
+---
+>   //  std::cout << "ht " << t_PFht << " mht " << t_PFmht << std::endl;
+1093c1120
+<   edm::Handle<edm::View<reco::Muon> > muonVeto;
+---
+>   edm::Handle<edm::View<pat::Muon> > muonVeto;
+1235c1262,1263
+<    iNJets = pickJetsForCombining(oriJetsVec, recoJetsBtagCSVS);
+---
+>    
+>    Int_t iNJets1 = pickJetsForCombining(oriJetsVec, recoJetsBtagCSVS);
+1236a1265,1268
+>    edm::Handle<edm::View<pat::Jet> > jetsAllR;
+>    iEvent.getByLabel("stopJetsPFchsPt30", jetsAllR);
+> 
+>    cout<<iNJets1<<" : "<<iNJets<<" : "<<jetsAllR->size()<<endl;
+1301,1391d1332
+<   puWeights_.clear();
+<   
+<   /* DCH
+<     //REMOVE THIS:
+<     //Saving TrueNPV from MC block.  Can then use this reweighting scheme on the fly:
+<   if(doPUReWeight) {
+< 
+<     TFile* puDataFile = new TFile("/uscms_data/d3/dhare/CMSSW_5_3_5/src/DiSTopStudy/DataPileupHistogram_RA2Summer12_190456-208686_ABCD.root");
+<     TH1D* data_npu_estimated = (TH1D*) puDataFile->Get("pileup");
+<     
+<     // Distribution used for Summer2012 MC.
+<     Double_t Summer2012[60] = {
+<       2.344E-05,
+<       2.344E-05,
+<       2.344E-05,
+<       2.344E-05,
+<       4.687E-04,
+<       4.687E-04,
+<       7.032E-04,
+<       9.414E-04,
+<       1.234E-03,
+<       1.603E-03,
+<       2.464E-03,
+<       3.250E-03,
+<       5.021E-03,
+<       6.644E-03,
+<       8.502E-03,
+<       1.121E-02,
+<       1.518E-02,
+<       2.033E-02,
+<       2.608E-02,
+<       3.171E-02,
+<       3.667E-02,
+<       4.060E-02,
+<       4.338E-02,
+<       4.520E-02,
+<       4.641E-02,
+<       4.735E-02,
+<       4.816E-02,
+<       4.881E-02,
+<       4.917E-02,
+<       4.909E-02,
+<       4.842E-02,
+<       4.707E-02,
+<       4.501E-02,
+<       4.228E-02,
+<       3.896E-02,
+<       3.521E-02,
+<       3.118E-02,
+<       2.702E-02,
+<       2.287E-02,
+<       1.885E-02,
+<       1.508E-02,
+<       1.166E-02,
+<       8.673E-03,
+<       6.190E-03,
+<       4.222E-03,
+<       2.746E-03,
+<       1.698E-03,
+<       9.971E-04,
+<       5.549E-04,
+<       2.924E-04,
+<       1.457E-04,
+<       6.864E-05,
+<       3.054E-05,
+<       1.282E-05,
+<       5.081E-06,
+<       1.898E-06,
+<       6.688E-07,
+<       2.221E-07,
+<       6.947E-08,
+<       2.047E-08
+<     };
+<     
+<     puWeights_.resize(60);
+<     double s = 0.0;
+<     for (int npu = 0; npu < 60; ++npu) {
+<       double npu_estimated = data_npu_estimated->GetBinContent(data_npu_estimated->GetXaxis()->FindBin(npu));
+<       puWeights_[npu] = npu_estimated/ Summer2012[npu];
+<       s += npu_estimated;
+<      
+<     }
+<    
+<     //normalized weights such that the total sum of weights over whole sample is 1.0
+<     for(int npu = 0; npu < 60; ++npu) {
+<       puWeights_[npu] /= s;
+<     } 
+<     
+<   }
+<   */
+<   
+1396a1338,1339
+>   //  tree->BuildIndex("t_EvtLS","t_EvtEvent");
+> 
+1410d1352
+<   tree->Branch("t_TrueNPV",   &t_TrueNPV,  "t_TrueNPV/D");
+1454c1396
+<       
+---
+>     
+1530,1598c1472,1550
+<   t_PFElecPt  = new std::vector<double>();
+<   t_PFElecEta = new std::vector<double>();    
+<   t_PFElecPhi = new std::vector<double>();
+<   t_PFElecE   = new std::vector<double>();
+<   t_PFElecCh  = new std::vector<double>();
+<   tree->Branch("t_PFElecPt",  "vector<double>", &t_PFElecPt );
+<   tree->Branch("t_PFElecEta", "vector<double>", &t_PFElecEta);
+<   tree->Branch("t_PFElecPhi", "vector<double>", &t_PFElecPhi);
+<   tree->Branch("t_PFElecE",   "vector<double>", &t_PFElecE  );
+<   tree->Branch("t_PFElecCh",  "vector<double>", &t_PFElecCh);
+< 
+<   t_PFEleIsEB        = new std::vector<bool>();
+<   t_PFEleIsEE        = new std::vector<bool>();
+<   tree->Branch("t_PFEleIsEB", "vector<bool>", &t_PFEleIsEB);
+<   tree->Branch("t_PFEleIsEE", "vector<bool>", &t_PFEleIsEE);
+< 
+<   t_PFEleDEtaIn      = new std::vector<double>();
+<   t_PFEleDPhiIn      = new std::vector<double>();
+<   t_PFEleSigIEtaIEta = new std::vector<double>();
+<   t_PFEleHOE         = new std::vector<double>();
+<   t_PFEleD0Vtx       = new std::vector<double>();
+<   t_PFEleZVtx        = new std::vector<double>();
+<   t_PFEleIsoCH       = new std::vector<double>();
+<   t_PFEleIsoEM       = new std::vector<double>();
+<   t_PFEleIsoNH       = new std::vector<double>();
+<   t_PFEleIsoRho      = new std::vector<double>();
+<   t_PFEleIsoEffA     = new std::vector<double>();
+<   t_PFEleRelIso      = new std::vector<double>();
+<   tree->Branch("t_PFEleDEtaIn"      , "vector<double>", &t_PFEleDEtaIn      );
+<   tree->Branch("t_PFEleDPhiIn"      , "vector<double>", &t_PFEleDPhiIn      );
+<   tree->Branch("t_PFEleSigIEtaIEta" , "vector<double>", &t_PFEleSigIEtaIEta );
+<   tree->Branch("t_PFEleHOE"         , "vector<double>", &t_PFEleHOE         );
+<   tree->Branch("t_PFEleD0Vtx"       , "vector<double>", &t_PFEleD0Vtx       );
+<   tree->Branch("t_PFEleZVtx"        , "vector<double>", &t_PFEleZVtx        );
+<   tree->Branch("t_PFEleIsoCH"       , "vector<double>", &t_PFEleIsoCH       );
+<   tree->Branch("t_PFEleIsoEM"       , "vector<double>", &t_PFEleIsoEM       );
+<   tree->Branch("t_PFEleIsoNH"       , "vector<double>", &t_PFEleIsoNH       );
+<   tree->Branch("t_PFEleIsoRho"      , "vector<double>", &t_PFEleIsoRho      );
+<   tree->Branch("t_PFEleIsoEffA"     , "vector<double>", &t_PFEleIsoEffA     );
+<   tree->Branch("t_PFEleRelIso"      , "vector<double>", &t_PFEleRelIso      );
+< 
+<   t_PFEleID          = new std::vector<bool>();
+<   t_PFEleIsolated    = new std::vector<bool>();
+<   t_PFEleIDIso       = new std::vector<bool>();
+<   tree->Branch("t_PFEleID",       "vector<bool>", &t_PFEleID      );
+<   tree->Branch("t_PFEleIsolated", "vector<bool>", &t_PFEleIsolated);
+<   tree->Branch("t_PFEleIDIso",    "vector<bool>", &t_PFEleIDIso   );
+< 
+<   t_PFEleDirIso01 = new std::vector<double>();
+<   t_PFEleDirIso02 = new std::vector<double>(); 
+<   t_PFEleDirIso03 = new std::vector<double>(); 
+<   t_PFEleDirIso04 = new std::vector<double>(); 
+<   t_PFEleDirIso05 = new std::vector<double>();
+<   tree->Branch("t_PFEleDirIso01", "vector<double>", &t_PFEleDirIso01 );
+<   tree->Branch("t_PFEleDirIso02", "vector<double>", &t_PFEleDirIso02 ); 
+<   tree->Branch("t_PFEleDirIso03", "vector<double>", &t_PFEleDirIso03 ); 
+<   tree->Branch("t_PFEleDirIso04", "vector<double>", &t_PFEleDirIso04 ); 
+<   tree->Branch("t_PFEleDirIso05", "vector<double>", &t_PFEleDirIso05 );
+< 
+<   t_PFEleIsWdau   = new std::vector<bool>();
+<   t_PFEleIsBdau   = new std::vector<bool>();
+<   t_PFEleGenElePt  = new std::vector<double>();
+<   t_PFEleGenEleEta = new std::vector<double>();
+<   t_PFEleGenElePhi = new std::vector<double>();
+<   tree->Branch("t_PFEleIsWdau",   "vector<bool>",   &t_PFEleIsWdau  );
+<   tree->Branch("t_PFEleIsBdau" ,  "vector<bool>",   &t_PFEleIsBdau  );
+<   tree->Branch("t_PFEleGenElePt",  "vector<double>", &t_PFEleGenElePt );
+<   tree->Branch("t_PFEleGenEleEta", "vector<double>", &t_PFEleGenEleEta);
+<   tree->Branch("t_PFEleGenElePhi", "vector<double>", &t_PFEleGenElePhi);
+---
+>   if(isDieleSample_){
+>     t_PFElecPt  = new std::vector<double>();
+>     t_PFElecEta = new std::vector<double>();    
+>     t_PFElecPhi = new std::vector<double>();
+>     t_PFElecE   = new std::vector<double>();
+>     t_PFElecCh  = new std::vector<double>();
+>     tree->Branch("t_PFElecPt",  "vector<double>", &t_PFElecPt );
+>     tree->Branch("t_PFElecEta", "vector<double>", &t_PFElecEta);
+>     tree->Branch("t_PFElecPhi", "vector<double>", &t_PFElecPhi);
+>     tree->Branch("t_PFElecE",   "vector<double>", &t_PFElecE  );
+>     tree->Branch("t_PFElecCh",  "vector<double>", &t_PFElecCh);
+>     
+>     t_PFEleIsEB        = new std::vector<bool>();
+>     t_PFEleIsEE        = new std::vector<bool>();
+>     tree->Branch("t_PFEleIsEB", "vector<bool>", &t_PFEleIsEB);
+>     tree->Branch("t_PFEleIsEE", "vector<bool>", &t_PFEleIsEE);
+>     
+>     t_PFEleDEtaIn      = new std::vector<double>();
+>     t_PFEleDPhiIn      = new std::vector<double>();
+>     t_PFEleSigIEtaIEta = new std::vector<double>();
+>     t_PFEleHOE         = new std::vector<double>();
+>     t_PFEleD0Vtx       = new std::vector<double>();
+>     t_PFEleZVtx        = new std::vector<double>();
+>     t_PFEleIsoCH       = new std::vector<double>();
+>     t_PFEleIsoEM       = new std::vector<double>();
+>     t_PFEleIsoNH       = new std::vector<double>();
+>     t_PFEleIsoRho      = new std::vector<double>();
+>     t_PFEleIsoEffA     = new std::vector<double>();
+>     t_PFEleRelIso      = new std::vector<double>();
+>     tree->Branch("t_PFEleDEtaIn"      , "vector<double>", &t_PFEleDEtaIn      );
+>     tree->Branch("t_PFEleDPhiIn"      , "vector<double>", &t_PFEleDPhiIn      );
+>     tree->Branch("t_PFEleSigIEtaIEta" , "vector<double>", &t_PFEleSigIEtaIEta );
+>     tree->Branch("t_PFEleHOE"         , "vector<double>", &t_PFEleHOE         );
+>     tree->Branch("t_PFEleD0Vtx"       , "vector<double>", &t_PFEleD0Vtx       );
+>     tree->Branch("t_PFEleZVtx"        , "vector<double>", &t_PFEleZVtx        );
+>     tree->Branch("t_PFEleIsoCH"       , "vector<double>", &t_PFEleIsoCH       );
+>     tree->Branch("t_PFEleIsoEM"       , "vector<double>", &t_PFEleIsoEM       );
+>     tree->Branch("t_PFEleIsoNH"       , "vector<double>", &t_PFEleIsoNH       );
+>     tree->Branch("t_PFEleIsoRho"      , "vector<double>", &t_PFEleIsoRho      );
+>     tree->Branch("t_PFEleIsoEffA"     , "vector<double>", &t_PFEleIsoEffA     );
+>     tree->Branch("t_PFEleRelIso"      , "vector<double>", &t_PFEleRelIso      );
+>     
+>     t_PFEleID          = new std::vector<bool>();
+>     t_PFEleIsolated    = new std::vector<bool>();
+>     t_PFEleIDIso       = new std::vector<bool>();
+>     tree->Branch("t_PFEleID",       "vector<bool>", &t_PFEleID      );
+>     tree->Branch("t_PFEleIsolated", "vector<bool>", &t_PFEleIsolated);
+>     tree->Branch("t_PFEleIDIso",    "vector<bool>", &t_PFEleIDIso   );
+>     
+>     t_PFEleDirIso01 = new std::vector<double>();
+>     t_PFEleDirIso02 = new std::vector<double>(); 
+>     t_PFEleDirIso03 = new std::vector<double>(); 
+>     t_PFEleDirIso04 = new std::vector<double>(); 
+>     t_PFEleDirIso05 = new std::vector<double>();
+>     tree->Branch("t_PFEleDirIso01", "vector<double>", &t_PFEleDirIso01 );
+>     tree->Branch("t_PFEleDirIso02", "vector<double>", &t_PFEleDirIso02 ); 
+>     tree->Branch("t_PFEleDirIso03", "vector<double>", &t_PFEleDirIso03 ); 
+>     tree->Branch("t_PFEleDirIso04", "vector<double>", &t_PFEleDirIso04 ); 
+>     tree->Branch("t_PFEleDirIso05", "vector<double>", &t_PFEleDirIso05 );
+>     
+>     t_PFEleIsWdau   = new std::vector<bool>();
+>     t_PFEleIsBdau   = new std::vector<bool>();
+>     t_PFEleGenElePt  = new std::vector<double>();
+>     t_PFEleGenEleEta = new std::vector<double>();
+>     t_PFEleGenElePhi = new std::vector<double>();
+>     tree->Branch("t_PFEleIsWdau",   "vector<bool>",   &t_PFEleIsWdau  );
+>     tree->Branch("t_PFEleIsBdau" ,  "vector<bool>",   &t_PFEleIsBdau  );
+>     tree->Branch("t_PFEleGenElePt",  "vector<double>", &t_PFEleGenElePt );
+>     tree->Branch("t_PFEleGenEleEta", "vector<double>", &t_PFEleGenEleEta);
+>     tree->Branch("t_PFEleGenElePhi", "vector<double>", &t_PFEleGenElePhi);
+>     
+> 
+>     tree->Branch("t_DiElecZPt", &t_PFElecZPt, "t_DiElecZPt/D");
+>     tree->Branch("t_DiElecZEta", &t_PFElecZEta, "t_DiElecZEta/D");
+>     tree->Branch("t_DiElecZPhi", &t_PFElecZPhi, "t_DiElecZPhi/D");
+>     tree->Branch("t_DiElecZE", &t_PFElecZE, "t_DiElecZE/D");
+>     tree->Branch("t_DiElecZMass", &t_PFElecZMass, "t_DiElecZMass/D");
+>   }
+> 
+1707a1660,1661
+>  //tree->BuildIndex("t_EvtLS","t_EvtEvent");
+> 
+1766,1800c1720,1763
+<   t_PFElecPt  ->clear();
+<   t_PFElecEta ->clear();    
+<   t_PFElecPhi ->clear();
+<   t_PFElecE   ->clear();
+<   t_PFElecCh  ->clear();
+< 
+<   t_PFEleIsEB        ->clear();
+<   t_PFEleIsEE        ->clear();
+<   t_PFEleDEtaIn      ->clear();
+<   t_PFEleDPhiIn      ->clear();
+<   t_PFEleSigIEtaIEta ->clear();
+<   t_PFEleHOE         ->clear();
+<   t_PFEleD0Vtx       ->clear();
+<   t_PFEleZVtx        ->clear();
+<   t_PFEleIsoCH       ->clear();
+<   t_PFEleIsoEM       ->clear();
+<   t_PFEleIsoNH       ->clear();
+<   t_PFEleIsoRho      ->clear();
+<   t_PFEleIsoEffA     ->clear();
+<   t_PFEleRelIso      ->clear();
+<   t_PFEleID          ->clear();
+<   t_PFEleIsolated    ->clear();
+<   t_PFEleIDIso       ->clear();
+< 
+<   t_PFEleDirIso01->clear();
+<   t_PFEleDirIso02->clear();
+<   t_PFEleDirIso03->clear();
+<   t_PFEleDirIso04->clear();
+<   t_PFEleDirIso05->clear();
+< 
+<   t_PFEleIsWdau   ->clear();
+<   t_PFEleIsBdau   ->clear();
+<   t_PFEleGenElePt  ->clear();
+<   t_PFEleGenEleEta ->clear();
+<   t_PFEleGenElePhi ->clear();
+---
+>   if(isDimuonSample_){
+>     t_PFElecPt  ->clear();
+>     t_PFElecEta ->clear();    
+>     t_PFElecPhi ->clear();
+>     t_PFElecE   ->clear();
+>     t_PFElecCh  ->clear();
+>     
+>     t_PFEleIsEB        ->clear();
+>     t_PFEleIsEE        ->clear();
+>     t_PFEleDEtaIn      ->clear();
+>     t_PFEleDPhiIn      ->clear();
+>     t_PFEleSigIEtaIEta ->clear();
+>     t_PFEleHOE         ->clear();
+>     t_PFEleD0Vtx       ->clear();
+>     t_PFEleZVtx        ->clear();
+>     t_PFEleIsoCH       ->clear();
+>     t_PFEleIsoEM       ->clear();
+>     t_PFEleIsoNH       ->clear();
+>     t_PFEleIsoRho      ->clear();
+>     t_PFEleIsoEffA     ->clear();
+>     t_PFEleRelIso      ->clear();
+>     t_PFEleID          ->clear();
+>     t_PFEleIsolated    ->clear();
+>     t_PFEleIDIso       ->clear();
+>     
+>     t_PFEleDirIso01->clear();
+>     t_PFEleDirIso02->clear();
+>     t_PFEleDirIso03->clear();
+>     t_PFEleDirIso04->clear();
+>     t_PFEleDirIso05->clear();
+>     
+>     t_PFEleIsWdau   ->clear();
+>     t_PFEleIsBdau   ->clear();
+>     t_PFEleGenElePt  ->clear();
+>     t_PFEleGenEleEta ->clear();
+>     t_PFEleGenElePhi ->clear();
+>     
+>     t_PFElecZPt=-1; 
+>     t_PFElecZEta=999; 
+>     t_PFElecZPhi=999; 
+>     t_PFElecZE=-1;
+>     t_PFElecZMass=-1;
+>   
+>   }
+1871,1874d1833
+< 
+<    int cntBJets =0;
+<    double topCSV = 0;
+< 
+1893,1895d1851
+<       //if(btag > 0.679 && jet.eta() < 2.4) cntBJets++;
+<       if(btag > topCSV) topCSV = btag;
+< 
+1899,1907d1854
+<    if(topCSV >= 0 && topCSV <= 0.679) {
+<    //DCH, hack to set highest csv jet as the b
+<      for(int q= 0; q < cntNJets; q++ ) {
+<        if(recoJetsBtagCSVS[q] == topCSV) recoJetsBtagCSVS[q] = 1;
+<        else recoJetsBtagCSVS[q] = 0;
+< 
+<      }
+<    }
+< 
+1916d1862
+<       if( jet.pt() < 30.0 ) continue;
