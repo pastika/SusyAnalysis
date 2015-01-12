@@ -126,6 +126,8 @@ bool NTupleReader::getNextEvent()
 
 void NTupleReader::clearTuple()
 {
+    // Do not initialize vector pointers here!
+
     run = lumi = event = 0;
     mht = mhtphi = ht = met = metphi = dPhi0_CUT = dPhi1_CUT = dPhi2_CUT = true_npv = avg_npv = 0.0;
     bestTopJetMass = MT2 = mTbestTopJet = mTbJet = linearCombmTbJetPlusmTbestTopJet = 0.0;
